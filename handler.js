@@ -1,20 +1,21 @@
+const serverless = require("serverless-http");
 const Alpaca = require("@alpacahq/alpaca-trade-api");
 const moment = require("moment");
 const chalk = require("chalk");
-// const fs = require("fs");
-// const csv = require("csv-parser");
-// const macd =  require('macd');
+const bodyParser = require("body-parser");
 const tulind = require("tulind");
-
+const express = require("express");
 const stocks = require("./config");
 
-// const API_KEY = "4f77d94b25b9e99c0b5cd4e8d55d10b2";
-// const API_SECRET = "af5147b34468881bff4e1b33e2bcc7965156a3cc";
+const app = express();
+
+app.use(bodyParser.json({ strict: false }));
+
 const API_KEY = "PKE6U90O58RBUBF7IZBJ";
 const API_SECRET = "DCtc6YzLefkgfsYA/yR4soCYnaezgju8QIeq2JLD";
 const PAPER = true;
 
-class MovingAverage {
+class TradingBot {
     constructor(API_KEY, API_SECRET, PAPER) {
         this.alpaca = new Alpaca({
             keyId: API_KEY,
@@ -23,41 +24,36 @@ class MovingAverage {
             usePolygon: false,
         });
 
-        // place stock here when bought and remove when signal changes
         this.stockWaitlist = [];
     }
 
     async run() {
-        // await this.awaitMarketOpen();
+        await this.awaitMarketOpen();
 
-        console.log(this.stockWaitlist);
-
-        const data = await this.alpaca.getBars("1Min", [...stocks.map((x) => x.symbol)], { start: "2020-05-20", end: "2020-05-21" });
+        const data = await this.alpaca.getBars("1Min", [...stocks.map((x) => x.symbol)], {
+            limit: 100,
+        });
 
         this.handleTrade(data);
     }
 
     async handleTrade(histData) {
         stocks.forEach(async (stock) => {
-            let stockPriceData;
-            let closePrices = [];
-            let dates = [];
+            const closePrices = [];
+            const dates = [];
 
-            for (let stock in histData) {
-                closePrices = histData[stock].map((bar) => bar.closePrice);
-                dates = histData[stock].map((bar) => moment.unix(bar.startEpochTime).format("YYYY-MM-DD hh:mm"));
-            }
+            histData[stock.symbol].forEach((bar) => {
+                closePrices.push(bar.closePrice);
+                dates.push(moment.unix(bar.startEpochTime).format("YYYY-MM-DD hh:mm"));
+            });
 
-            console.log(stockPriceData);
+            let macdLine = [];
+            let signalLine = [];
+            let histogram = [];
+            let rsi = [];
 
-            let macdLine;
-            let signalLine;
-            let histogram;
-
-            const lengthDiff = tulind.indicators.macd.start([12, 26, 9]);
+            const lengthDiff = 25;
             dates.splice(0, lengthDiff);
-
-            let rsi;
 
             await tulind.indicators.rsi.indicator([closePrices], [14], (err, result) => {
                 const diff = lengthDiff - 14;
@@ -90,13 +86,18 @@ class MovingAverage {
             const isHistogramTrendingUp = lastThreeBars.some(() => {
                 return lastThreeBars[0].histogram > lastThreeBars[2].histogram;
             });
-            const isHistogramTrendingDown = lastThreeBars.some(() => {
-                return lastThreeBars[0].histogram < lastThreeBars[2].histogram;
-            });
+            // const isHistogramTrendingDown = lastThreeBars.some(() => {
+            //     return lastThreeBars[0].histogram < lastThreeBars[2].histogram;
+            // });
 
             const mostRecentData = tradeData[tradeData.length - 1];
 
-            // console.log(chalk.yellow(`-- ${stock.symbol} --`));
+            if (mostRecentData.rsi <= 30) {
+                console.log(chalk.yellow(`-- ${stock.symbol} --`));
+                console.log(mostRecentData);
+                console.log("hasRsiBeenBelow30Last10Bars: ", hasRsiBeenBelow30Last10Bars);
+                console.log("isHistogramTrendingUp: ", isHistogramTrendingUp);
+            }
 
             if (mostRecentData.macd > mostRecentData.signal && hasRsiBeenBelow30Last10Bars && isHistogramTrendingUp) {
                 console.log(chalk.green("should buy"));
@@ -106,7 +107,7 @@ class MovingAverage {
                     this.buyStock(mostRecentData, stock.quantity);
                     this.stockWaitlist.push(stock.symbol);
                 }
-            } else if (mostRecentData.macd < mostRecentData.signal && hasRsiBeenAbove70Last10Bars && isHistogramTrendingDown) {
+            } else if (mostRecentData.macd < mostRecentData.signal && hasRsiBeenAbove70Last10Bars) {
                 this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
 
                 console.log(chalk.red("should sell"));
@@ -117,11 +118,6 @@ class MovingAverage {
                 this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
             }
         });
-    }
-
-    async backtest() {
-        // read csv file
-        // get close price and date
     }
 
     async awaitMarketOpen() {
@@ -136,7 +132,7 @@ class MovingAverage {
                         let currTime = new Date(clock.timestamp.substring(0, clock.timestamp.length - 6));
                         this.timeToClose = Math.floor((openTime - currTime) / 1000 / 60);
                         console.log(`${this.timeToClose} minutes til next market open.`);
-                        setTimeout(check, 60000);
+                        // setTimeout(check, 60000);
                     }
                 } catch (err) {
                     console.log(err.error.message);
@@ -148,7 +144,7 @@ class MovingAverage {
     }
 
     async buyStock(item, quantity) {
-        const balance = this.getAccountBalance();
+        const balance = await this.getAccountBalance();
         const onePercent = balance / 100;
 
         let qty = quantity;
@@ -210,12 +206,54 @@ class MovingAverage {
     }
 }
 
-const app = new MovingAverage(API_KEY, API_SECRET, PAPER);
+let interval;
 
-// setInterval(() => {
-//     app.run();
+app.get("/", async (req, res) => {
+    const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
+    const startTime = moment();
+
+    if (interval) clearInterval(interval);
+
+    interval = setInterval(() => {
+        strategy.run();
+
+        const currentTime = moment();
+        const duration = moment.duration(currentTime.diff(startTime));
+        const hours = duration.asHours();
+
+        if (hours > 7) {
+            clearInterval(interval);
+            interval = null;
+        }
+    }, 60000);
+
+    res.send("Trading started");
+});
+
+app.get("/start", async (req, res) => {
+    const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
+
+    if (interval) clearInterval(interval);
+
+    interval = setInterval(() => {
+        strategy.run();
+    }, 60000);
+
+    res.send("Trading started");
+});
+
+app.get("/stop", async (req, res) => {
+    if (interval) clearInterval(interval);
+
+    res.send("Trading stopped");
+});
+
+module.exports.trade_api = serverless(app);
+
+// const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
+
+// interval = setInterval(() => {
+//     strategy.run();
 // }, 60000);
 
-app.run();
-
-// app.simulate();
+// strategy.run();

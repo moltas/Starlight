@@ -11,8 +11,8 @@ const app = express();
 
 app.use(bodyParser.json({ strict: false }));
 
-const API_KEY = "PKE6U90O58RBUBF7IZBJ";
-const API_SECRET = "DCtc6YzLefkgfsYA/yR4soCYnaezgju8QIeq2JLD";
+const API_KEY = "PKBCMJYA0AOCE8RWQ3TB";
+const API_SECRET = "KPOhIzZf0HIKrO2fFg2JIzl8A8SvpdOwCL5lK2GM";
 const PAPER = true;
 
 class TradingBot {

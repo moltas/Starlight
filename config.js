@@ -39,4 +39,24 @@ module.exports = [
         symbol: "AAU",
         quantity: 1,
     },
+    {
+        symbol: "VSLR",
+        quantity: 1,
+    },
+    {
+        symbol: "BA",
+        quantity: 1,
+    },
+    {
+        symbol: "AAPL",
+        quantity: 1,
+    },
+    {
+        symbol: "MSFT",
+        quantity: 1,
+    },
+    {
+        symbol: "NET",
+        quantity: 1,
+    },
 ];

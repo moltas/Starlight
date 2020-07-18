@@ -11,8 +11,8 @@ const app = express();
 
 app.use(bodyParser.json({ strict: false }));
 
-const API_KEY = "PKBCMJYA0AOCE8RWQ3TB";
-const API_SECRET = "KPOhIzZf0HIKrO2fFg2JIzl8A8SvpdOwCL5lK2GM";
+const API_KEY = "PK1S4W9F2FWO9697KMJQ";
+const API_SECRET = "eKu/STVz8d1gSc00iqm3sJiLbRVabUTgS6jU9Jh8";
 const PAPER = true;
 
 class TradingBot {
@@ -92,13 +92,6 @@ class TradingBot {
 
             const mostRecentData = tradeData[tradeData.length - 1];
 
-            if (mostRecentData.rsi <= 30) {
-                console.log(chalk.yellow(`-- ${stock.symbol} --`));
-                console.log(mostRecentData);
-                console.log("hasRsiBeenBelow30Last10Bars: ", hasRsiBeenBelow30Last10Bars);
-                console.log("isHistogramTrendingUp: ", isHistogramTrendingUp);
-            }
-
             if (mostRecentData.macd > mostRecentData.signal && hasRsiBeenBelow30Last10Bars && isHistogramTrendingUp) {
                 console.log(chalk.green("should buy"));
                 console.log(mostRecentData);
@@ -109,7 +102,6 @@ class TradingBot {
                 }
             } else if (mostRecentData.macd < mostRecentData.signal && hasRsiBeenAbove70Last10Bars) {
                 this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
-
                 console.log(chalk.red("should sell"));
                 console.log(mostRecentData);
 
@@ -132,7 +124,6 @@ class TradingBot {
                         let currTime = new Date(clock.timestamp.substring(0, clock.timestamp.length - 6));
                         this.timeToClose = Math.floor((openTime - currTime) / 1000 / 60);
                         console.log(`${this.timeToClose} minutes til next market open.`);
-                        // setTimeout(check, 60000);
                     }
                 } catch (err) {
                     console.log(err.error.message);
@@ -153,17 +144,19 @@ class TradingBot {
             qty++;
         }
 
-        const response = await this.alpaca.createOrder({
-            symbol: item.symbol, // any valid ticker symbol
-            qty: qty,
-            side: "buy",
-            type: "stop_limit",
-            time_in_force: "gtc",
-            limit_price: item.close,
-            stop_price: item.close * 0.95,
-        });
+        if (balance > item.close) {
+            const response = await this.alpaca.createOrder({
+                symbol: item.symbol, // any valid ticker symbol
+                qty: qty,
+                side: "buy",
+                type: "stop_limit",
+                time_in_force: "gtc",
+                limit_price: item.close,
+                stop_price: item.close * 0.95,
+            });
 
-        console.log("stock successfully bought", response);
+            console.log("stock successfully bought", response);
+        }
     }
 
     async sellStock(symbol) {
@@ -178,17 +171,19 @@ class TradingBot {
             direction: "asc",
         });
 
-        console.log(openOrders);
-
-        if (positionWithTicker.length > 0) {
-            const response = await this.alpaca.createOrder({
-                symbol: symbol,
-                qty: positionWithTicker[0].qty,
-                side: "sell",
-                type: "market",
-                time_in_force: "gtc",
-            });
-            console.log(response.status);
+        if (positionWithTicker.length > 0 || openOrders.some((order) => order.symbol === symbol)) {
+            try {
+                const response = await this.alpaca.createOrder({
+                    symbol: symbol,
+                    qty: positionWithTicker[0].qty,
+                    side: "sell",
+                    type: "market",
+                    time_in_force: "gtc",
+                });
+                console.log(response.status);
+            } catch (error) {
+                this.stockWaitlist.push(symbol);
+            }
         }
     }
 
@@ -206,54 +201,42 @@ class TradingBot {
     }
 }
 
-let interval;
-
 app.get("/", async (req, res) => {
     const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
-    const startTime = moment();
 
-    if (interval) clearInterval(interval);
+    await strategy.run();
 
-    interval = setInterval(() => {
-        strategy.run();
-
-        const currentTime = moment();
-        const duration = moment.duration(currentTime.diff(startTime));
-        const hours = duration.asHours();
-
-        if (hours > 7) {
-            clearInterval(interval);
-            interval = null;
-        }
-    }, 60000);
-
-    res.send("Trading started");
+    res.send("Trade check finished");
 });
 
-app.get("/start", async (req, res) => {
-    const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
+// let interval;
 
-    if (interval) clearInterval(interval);
+// app.get("/start", async (req, res) => {
+//     const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
 
-    interval = setInterval(() => {
-        strategy.run();
-    }, 60000);
+//     if (interval) clearInterval(interval);
 
-    res.send("Trading started");
-});
+//     interval = setInterval(() => {
+//         strategy.run();
+//     }, 60000);
 
-app.get("/stop", async (req, res) => {
-    if (interval) clearInterval(interval);
+//     console.log("Trading started");
 
-    res.send("Trading stopped");
-});
+//     res.send("Trading started");
+// });
+
+// app.get("/stop", async (req, res) => {
+//     if (interval) clearInterval(interval);
+
+//     console.log("Trading stopped");
+
+//     res.send("Trading stopped");
+// });
+
+const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
+
+setInterval(() => {
+    strategy.run();
+}, 60000);
 
 module.exports.trade_api = serverless(app);
-
-// const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
-
-// interval = setInterval(() => {
-//     strategy.run();
-// }, 60000);
-
-// strategy.run();

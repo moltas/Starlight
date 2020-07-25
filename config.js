@@ -1,62 +1,22 @@
 module.exports = [
     {
-        symbol: "SEDG",
+        symbol: "BTCUSDT",
         quantity: 1,
+        decimals: 2,
     },
     {
-        symbol: "INTC",
+        symbol: "ETHUSDT",
         quantity: 1,
+        decimals: 2,
     },
     {
-        symbol: "AAL",
+        symbol: "LTCUSDT",
         quantity: 1,
+        decimals: 2,
     },
     {
-        symbol: "NVDA",
+        symbol: "ADAUSDT",
         quantity: 1,
-    },
-    {
-        symbol: "AMD",
-        quantity: 1,
-    },
-    {
-        symbol: "GDXJ",
-        quantity: 1,
-    },
-    {
-        symbol: "HMY",
-        quantity: 1,
-    },
-    {
-        symbol: "RUN",
-        quantity: 1,
-    },
-    {
-        symbol: "XPL",
-        quantity: 1,
-    },
-    {
-        symbol: "AAU",
-        quantity: 1,
-    },
-    {
-        symbol: "VSLR",
-        quantity: 1,
-    },
-    {
-        symbol: "BA",
-        quantity: 1,
-    },
-    {
-        symbol: "AAPL",
-        quantity: 1,
-    },
-    {
-        symbol: "MSFT",
-        quantity: 1,
-    },
-    {
-        symbol: "NET",
-        quantity: 1,
+        decimals: 5,
     },
 ];

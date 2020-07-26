@@ -45,7 +45,7 @@ const strategy = new TradingBot();
 
 setIntervalAsync(async () => {
     await strategy.run();
-}, 1000);
+}, 500);
 
 // strategy.run();
 

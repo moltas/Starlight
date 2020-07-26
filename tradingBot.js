@@ -3,33 +3,32 @@ const chalk = require("chalk");
 const tulind = require("tulind");
 const axios = require("axios");
 const crypto = require("crypto");
-// const fs = require("fs").promises;
+const fs = require("fs").promises;
 
 const config = require("./config");
 
 const BASE_URL = "https://api.binance.com/api/v3";
 const API_KEY = "UFXm47ecR6IaD2hMlFDclbNxQF9dVPVnssYFAm99VUtoPI65EYgAaOai4nuEwHSC";
 const API_SECRET = "6rVeGsEWErt0Vbfb8DeMYn9xwPOnNfa8zdshB49lMfq4tnnfnq2KXOfDwpGxDlb5";
-// const filePath = "output/trades.json";
-
-axios.interceptors.response.use(
-    function (response) {
-        return response;
-    },
-    function (error) {
-        console.log(Object.keys(error.response));
-        console.log(error.response);
-        return Promise.reject(error);
-    }
-);
+const filePath = "output/trades.json";
 
 class TradingBot {
     constructor() {
         this.stockWaitlist = [];
         this.configInitialized = false;
+        this.numberOfTrades = 0;
+        this.totalProfit = 0;
+    }
+
+    results() {
+        return {
+            numberOfTrades: this.numberOfTrades,
+            totalProfits: `${this.totalProfit}$`,
+        };
     }
 
     async run() {
+        console.time("timer");
         if (!this.configInitialized) {
             await this.getExchangeData(config);
             this.configInitialized = true;
@@ -54,7 +53,11 @@ class TradingBot {
 
         await Promise.all(promiseArray);
 
+        console.timeEnd("timer");
         console.log(chalk.yellow("Running..."));
+        console.log(this.results());
+
+        await writeToFile({ test: 123 });
     }
 
     async handleTrade(stock, histData) {
@@ -90,16 +93,18 @@ class TradingBot {
 
         const tradeData = macdLine.map((x, i) => ({
             symbol: stock.symbol,
-            macd: macdLine[i],
-            signal: signalLine[i],
+            macd: parseFloat(macdLine[i]).toFixed(4),
+            signal: parseFloat(signalLine[i]).toFixed(4),
             histogram: histogram[i],
             date: dates[i],
             close: closePrices[i],
-            rsi: rsi[i],
+            rsi: parseFloat(rsi[i]).toFixed(4),
         }));
 
-        const hasRsiBeenBelow30Last10Bars = tradeData.slice(tradeData.length - 10, tradeData.length).some((bar) => bar.rsi <= 31);
-        const hasRsiBeenAbove70Last10Bars = tradeData.slice(tradeData.length - 10, tradeData.length).some((bar) => bar.rsi >= 69);
+        const hasRsiBeenBelow30Last10Bars = tradeData.slice(tradeData.length - 10, tradeData.length).some((bar) => bar.rsi <= stock.rsiLow);
+        const hasRsiBeenAbove70Last10Bars = tradeData
+            .slice(tradeData.length - 10, tradeData.length)
+            .some((bar) => bar.rsi >= stock.rsiHigh);
 
         const lastThreeBars = tradeData.slice(tradeData.length - 3, tradeData.length);
         const isHistogramTrendingUp =
@@ -113,21 +118,36 @@ class TradingBot {
         let priceBelowAvgPrice = avgPrice > mostRecentData.close;
 
         console.log(
-            `{symbol: ${chalk.magenta(mostRecentData.symbol)}, rsi: ${chalk.cyan(mostRecentData.rsi)}, macd: ${chalk.cyan(
-                mostRecentData.macd
-            )}, signal: ${chalk.yellow(mostRecentData.signal)}, close: ${chalk.greenBright(mostRecentData.close)}}`
+            `{symbol: ${chalk.magenta(mostRecentData.symbol)}, rsi: ${
+                hasRsiBeenAbove70Last10Bars || hasRsiBeenBelow30Last10Bars
+                    ? chalk.green(mostRecentData.rsi)
+                    : chalk.cyan(mostRecentData.rsi)
+            }, macd: ${
+                (hasRsiBeenAbove70Last10Bars && mostRecentData.macd < mostRecentData.signal) ||
+                (hasRsiBeenBelow30Last10Bars && mostRecentData.macd > mostRecentData.signal)
+                    ? chalk.green(mostRecentData.macd)
+                    : chalk.cyan(mostRecentData.macd)
+            }, histogram: ${chalk.yellow(mostRecentData.histogram)}, close: ${chalk.greenBright(mostRecentData.close)}, date: ${
+                mostRecentData.date
+            }}`
         );
 
-        if (hasRsiBeenBelow30Last10Bars && mostRecentData.macd > mostRecentData.signal && isHistogramTrendingUp) {
-            console.log(chalk.green("RSI and MACD is true"));
-        }
-
-        if (priceBelowAvgPrice && mostRecentData.macd > mostRecentData.signal && hasRsiBeenBelow30Last10Bars && isHistogramTrendingUp) {
+        if (
+            priceBelowAvgPrice &&
+            mostRecentData.macd > mostRecentData.signal &&
+            hasRsiBeenBelow30Last10Bars &&
+            mostRecentData.histogram <= -0.3
+        ) {
+            console.log(chalk.cyan("Buy signal reached"));
             if (!this.stockWaitlist.includes(stock.symbol)) {
                 await this.buyStock(mostRecentData, stock);
                 this.stockWaitlist.push(stock.symbol);
             }
-        } else if (priceAboveAvgPrice && mostRecentData.macd < mostRecentData.signal && hasRsiBeenAbove70Last10Bars) {
+        } else if (
+            (priceAboveAvgPrice && mostRecentData.macd < mostRecentData.signal && hasRsiBeenAbove70Last10Bars) ||
+            mostRecentData.histogram >= 0.5
+        ) {
+            console.log(chalk.cyan("Sell signal reached"));
             await this.sellStock(mostRecentData, stock);
             this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         }
@@ -135,23 +155,37 @@ class TradingBot {
 
     async buyStock(item, stock) {
         const balance = await this.getAccountBalance();
-        // const onePercent = balance / 100;
-
-        console.log("balance", balance);
-
+        const tenPercent = balance / 10;
         let qty = stock.minQty;
-        let times = stock.minNotional / stock.stepSize;
-        qty = stock.stepSize * times;
 
-        // while (qty * item.close < stock.minNotional && stock.stepSize > 0) {
-        //     qty = qty + stock.stepSize;
-        // }
-
-        if (balance > qty * item.close) {
-            const response = await this.createBuyOrder(item, qty, stock);
-
-            console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}. Http status: ${response.status}`));
+        while (qty * item.close * 0.9 < stock.minNotional) {
+            qty += stock.stepSize;
         }
+
+        if (qty * item.close < stock.minNotional) {
+            console.log(
+                chalk.red(
+                    `Buy validation failed. MinNotional not reached. Amount is ${qty * item.close} and minNotional is ${stock.minNotional}`
+                )
+            );
+            return;
+        }
+
+        if (qty * item.close * 0.99 > balance) {
+            console.log(
+                chalk.red(`Buy validation failed. Not enough balance (${balance}) to buy - ${stock.symbol} at price ${qty * item.close}`)
+            );
+            return;
+        }
+
+        await this.createBuyOrder(item, qty, stock);
+
+        console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
+        console.log("Remaining balance", balance);
+
+        await writeToFile(stock, { side: "buy", price: item.close, qty: qty, amount: qty * item.close, date: item.date });
+
+        this.numberOfTrades += 1;
 
         return;
     }
@@ -161,19 +195,45 @@ class TradingBot {
         const positionWithTicker = positions && positions.length > 0 ? positions[0] : null;
 
         if (positionWithTicker && positionWithTicker.free > 0) {
-            const openOrders = await this.getOpenOrders(item.symbol);
-            if (openOrders.length > 0) {
-                const status = await this.cancelOpenOrders(item.symbol);
-                console.log(`cancelling orders - ${status}`);
+            let qty = stock.minQty;
+
+            while (qty < positionWithTicker.free) {
+                qty += stock.stepSize;
             }
 
-            let times = positionWithTicker.free / stock.stepSize;
-            let qty = stock.stepSize * times;
+            console.log(`total value to sell is: ${positionWithTicker.free * item.close}`);
 
-            if (qty * item.close * 0.98 < stock.minNotional) return;
+            if (qty > positionWithTicker.free) qty -= stock.stepSize;
 
-            const response = await this.createSellOrder(item, qty, stock);
-            console.log(chalk.green(`selling ${item.symbol} in quantity: ${qty}. Http status: ${response.status}`));
+            console.log(`total sell value - ${qty * item.close}`);
+
+            if (qty * item.close < stock.minNotional) {
+                console.log(
+                    chalk.red(
+                        `Sell validation failed. MinNotional not reached. Amount is ${qty * item.close} and minNotional is ${
+                            stock.minNotional
+                        }`
+                    )
+                );
+                return;
+            }
+
+            const openOrders = await this.getOpenOrders(item.symbol);
+            if (openOrders.length > 0) {
+                await this.cancelOpenOrders(item.symbol);
+            }
+
+            const { price: buyPrice, qty: buyQty } = await this.getLastBuy(item.symbol);
+            const profit = buyQty * item.close - buyPrice * buyQty;
+            console.log("profit is", profit);
+
+            if (profit > -0.1) {
+                await this.createSellOrder(item, qty, stock);
+                console.log(chalk.green(`selling ${item.symbol} in quantity: ${qty}`));
+                this.totalProfit += profit;
+                this.numberOfTrades += 1;
+                await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
+            }
         }
 
         return;
@@ -206,7 +266,7 @@ class TradingBot {
         const data = await getRequest("openOrders", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
 
         if (symbol) {
-            const orderBySymbol = data.filter((order) => order.symbol === symbol.slice(0, 3));
+            const orderBySymbol = data.filter((order) => order.symbol === symbol);
             return orderBySymbol;
         }
 
@@ -223,7 +283,6 @@ class TradingBot {
 
     async getCurrentAvgPrice(symbol) {
         const { price } = await getRequest("avgPrice", `symbol=${symbol}`);
-
         return price;
     }
 
@@ -233,9 +292,6 @@ class TradingBot {
 
         return await postRequest(
             "order",
-            // `symbol=${item.symbol}&side=BUY&type=STOP_LOSS_LIMIT&timeInForce=GTC&quantity=${quantity}&price=${(item.close * 1).toFixed(
-            //     config.decimals
-            // )}&stopPrice=${(item.close * 0.8).toFixed(config.decimals)}&timestamp=${timeInMilliseconds}`,
             `symbol=${item.symbol}&side=BUY&type=MARKET&quantity=${quantity.toFixed(config.precision)}&timestamp=${timeInMilliseconds}`,
             isSigned
         );
@@ -246,10 +302,13 @@ class TradingBot {
         const isSigned = true;
         return await postRequest(
             "order",
-            `symbol=${item.symbol}&side=SELL&type=STOP_LOSS_LIMIT&timeInForce=gtc&quantity=${quantity.toFixed(config.precision)}&price=${(
-                item.close * 0.998
-            ).toFixed(config.decimals)}&stopPrice=${(item.close * 0.999).toFixed(config.decimals)}&timestamp=${timeInMilliseconds}`,
+            `symbol=${item.symbol}&side=SELL&type=MARKET&quantity=${quantity.toFixed(config.precision)}&timestamp=${timeInMilliseconds}`,
             isSigned
+            // "order",
+            // `symbol=${item.symbol}&side=SELL&type=STOP_LOSS_LIMIT&timeInForce=gtc&quantity=${quantity.toFixed(config.precision)}&price=${(
+            //     item.close * 0.9997
+            // ).toFixed(config.decimals)}&stopPrice=${(item.close * 0.9998).toFixed(config.decimals)}&timestamp=${timeInMilliseconds}`,
+            // isSigned
         );
     }
 
@@ -260,7 +319,6 @@ class TradingBot {
             const data = await getRequest("aggTrades", `symbol=${symbol}&startTime=${fiveMinutesBackMS}&endTime=${currentTimeMS}`);
             const formattedData = data.map((bar) => ({ close: bar.p, date: moment(bar.T).format("YYYY-MM-DD hh:mm:ss") }));
             const dataWithoutDuplicates = mergeObjectsInUnique(formattedData, "date");
-            // console.log(symbol, dataWithoutDuplicates[dataWithoutDuplicates.length - 1]);
             return dataWithoutDuplicates;
         } else {
             const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=100`);
@@ -280,48 +338,84 @@ class TradingBot {
             const { minQty, stepSize } = coinInfo.filters.filter((x) => x.filterType === "LOT_SIZE")[0];
 
             item.precision = coinInfo.quotePrecision;
-            item.minNotional = minNotional;
-            item.minPrice = minPrice;
-            item.maxPrice = maxPrice;
+            item.minNotional = parseFloat(minNotional);
+            item.minPrice = parseFloat(minPrice);
+            item.maxPrice = parseFloat(maxPrice);
             item.minQty = parseFloat(minQty);
             item.stepSize = parseFloat(stepSize);
         });
 
         return;
     }
+
+    async getLastBuy(symbol) {
+        const timeInMilliseconds = moment().valueOf();
+        const isSigned = true;
+        const data = await getRequest("myTrades", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
+        const buyTrades = data.filter((x) => x.isBuyer);
+        return buyTrades[buyTrades.length - 1];
+    }
 }
 
-// async function asyncForEach(array, callback) {
-//     for (let index = 0; index < array.length; index++) {
-//         await callback(array[index], index, array);
-//     }
-// }
+async function writeToFile(stock, obj) {
+    if (!stock.symbol) return;
+
+    const fileContent = await fs.readFile(filePath, "utf-8");
+    const fileObj = JSON.parse(fileContent);
+
+    if (!Object.keys(fileObj).includes(stock.symbol)) {
+        fileObj[stock.symbol] = [obj];
+    } else {
+        fileObj[stock.symbol].push(obj);
+    }
+
+    const writeContent = JSON.stringify(fileObj);
+    await fs.writeFile(filePath, writeContent);
+}
 
 async function getRequest(route, params, isSigned = false, headers = {}) {
     const HMAC_KEY = crypto.createHmac("sha256", API_SECRET).update(params).digest("hex");
 
-    const { data } = await axios.get(`${BASE_URL}/${route}?${params}${isSigned ? `&signature=${HMAC_KEY}` : ""}`, {
-        headers: { ...headers, "X-MBX-APIKEY": API_KEY },
-    });
-    return data;
+    try {
+        const { data } = await axios.get(`${BASE_URL}/${route}?${params}${isSigned ? `&signature=${HMAC_KEY}` : ""}`, {
+            headers: { ...headers, "X-MBX-APIKEY": API_KEY },
+        });
+        return data;
+    } catch (err) {
+        const errMsg = err.response ? err.response.data.msg : err;
+        console.log(chalk.red(`Request ${route} ${params} - ${errMsg}`));
+        return Promise.reject(errMsg);
+    }
 }
 
 async function postRequest(route, params, isSigned = false, headers = {}) {
     const HMAC_KEY = crypto.createHmac("sha256", API_SECRET).update(params).digest("hex");
 
-    const response = await axios.post(`${BASE_URL}/${route}?${params}${isSigned ? `&signature=${HMAC_KEY}` : ""}`, null, {
-        headers: { ...headers, "X-MBX-APIKEY": API_KEY },
-    });
-    return response;
+    try {
+        const response = await axios.post(`${BASE_URL}/${route}?${params}${isSigned ? `&signature=${HMAC_KEY}` : ""}`, null, {
+            headers: { ...headers, "X-MBX-APIKEY": API_KEY },
+        });
+        return response;
+    } catch (err) {
+        const errMsg = err.response.data.msg;
+        console.log(chalk.red(`Request ${route} ${params} - ${errMsg}`));
+        return Promise.reject(errMsg);
+    }
 }
 
 async function deleteRequest(route, params, isSigned = false, headers = {}) {
     const HMAC_KEY = crypto.createHmac("sha256", API_SECRET).update(params).digest("hex");
 
-    const response = await axios.delete(`${BASE_URL}/${route}?${params}${isSigned ? `&signature=${HMAC_KEY}` : ""}`, {
-        headers: { ...headers, "X-MBX-APIKEY": API_KEY },
-    });
-    return response;
+    try {
+        const response = await axios.delete(`${BASE_URL}/${route}?${params}${isSigned ? `&signature=${HMAC_KEY}` : ""}`, {
+            headers: { ...headers, "X-MBX-APIKEY": API_KEY },
+        });
+        return response;
+    } catch (err) {
+        const errMsg = err.response.data.msg;
+        console.log(chalk.red(`Request ${route} ${params} - ${errMsg}`));
+        return Promise.reject(errMsg);
+    }
 }
 
 function mergeObjectsInUnique(array, property) {

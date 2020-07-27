@@ -1,8 +1,10 @@
 const serverless = require("serverless-http");
 const bodyParser = require("body-parser");
 const express = require("express");
+const chalk = require("chalk");
 const { setIntervalAsync, clearIntervalAsync } = require("set-interval-async/dynamic");
 
+const config = require("./config");
 const TradingBot = require("./tradingBot");
 
 const app = express();
@@ -43,10 +45,33 @@ app.get("/", async (req, res) => {
 
 const strategy = new TradingBot();
 
-setIntervalAsync(async () => {
-    await strategy.run();
-}, 500);
+const promiseArray = [];
+let results;
 
-// strategy.run();
+config.forEach((item) => {
+    const promise = new Promise((resolve, reject) => {
+        let interval = null;
+        strategy
+            .collectTradeData(item.symbol)
+            .then(() => {
+                resolve();
+                interval = setIntervalAsync(async () => {
+                    results = await strategy.run(item);
+                }, 1000);
+            })
+            .catch((err) => {
+                clearIntervalAsync(interval);
+                reject(err);
+            });
+    });
+
+    promiseArray.push(promise);
+});
+
+setInterval(() => {
+    console.log(chalk.cyan(results));
+}, 60000);
+
+Promise.all(promiseArray);
 
 module.exports.trade_api = serverless(app);

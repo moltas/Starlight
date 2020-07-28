@@ -4,10 +4,11 @@ const tulind = require("tulind");
 const fs = require("fs");
 const createCsvWriter = require("csv-writer").createObjectCsvWriter;
 const csv = require("csv-parser");
+var path = require("path");
 
-const { asyncForEach, mergeObjectsInUnique, timeout, getRequest, postRequest, deleteRequest } = require("./utils");
+const { mergeObjectsInUnique, timeout, getRequest, postRequest, deleteRequest } = require("./utils");
 
-const filePath = "output/trades.json";
+const filePath = path.resolve("output/trades.json");
 
 class TradingBot {
     constructor() {
@@ -31,7 +32,7 @@ class TradingBot {
     async collectTradeData(symbol) {
         console.log(chalk.yellow("Collecting data..."));
         const csvWriter = createCsvWriter({
-            path: `output/${symbol}.csv`,
+            path: path.resolve(`output/${symbol}.csv`),
             header: [
                 { id: "symbol", title: "symbol" },
                 { id: "close", title: "close" },
@@ -46,7 +47,7 @@ class TradingBot {
 
         return new Promise((resolve, reject) => {
             try {
-                fs.createReadStream(`output/${symbol}.csv`)
+                fs.createReadStream(path.resolve(`output/${symbol}.csv`))
                     .pipe(csv())
                     .on("data", (row) => {
                         this.tradingData.push(row);
@@ -450,7 +451,7 @@ class TradingBot {
     async collectBackTestingData(symbol, times) {
         console.log(chalk.yellow("Collecting back test data..."));
         const csvWriter = createCsvWriter({
-            path: `output/${symbol}_test.csv`,
+            path: path.resolve(`output/${symbol}_test.csv`),
             header: [
                 { id: "symbol", title: "symbol" },
                 { id: "close", title: "close" },

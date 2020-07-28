@@ -5,7 +5,7 @@ const fs = require("fs");
 const createCsvWriter = require("csv-writer").createObjectCsvWriter;
 const csv = require("csv-parser");
 
-const { mergeObjectsInUnique, timeout, getRequest, postRequest, deleteRequest } = require("./utils");
+const { asyncForEach, mergeObjectsInUnique, timeout, getRequest, postRequest, deleteRequest } = require("./utils");
 
 const filePath = "output/trades.json";
 
@@ -429,10 +429,22 @@ class TradingBot {
 
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
-        const data = await getRequest("myTrades", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
+        let data = await getRequest("myTrades", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
 
-        const buyTrades = data.filter((x) => x.isBuyer);
-        return buyTrades[buyTrades.length - 1].price;
+        let index = data.length - 1;
+
+        while (index > 0) {
+            index--;
+            if (data[index].isBuyer === false) {
+                data = data.slice(index, data.length - 1);
+                break;
+            }
+        }
+
+        let totalAmount = 0;
+        data.forEach((x) => (totalAmount += parseFloat(x.price) * parseFloat(x.qty)));
+
+        return totalAmount;
     }
 
     async collectBackTestingData(symbol) {

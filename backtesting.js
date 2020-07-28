@@ -55,9 +55,9 @@ class BackTesting {
 }
 
 const testing = new BackTesting();
-// testing.run("BTCUSDT");
+testing.run("BTCUSDT");
 // testing.run("ETHUSDT");
-testing.run("LTCUSDT");
+// testing.run("LTCUSDT");
 
 // const promiseArray = [];
 

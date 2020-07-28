@@ -54,4 +54,7 @@ setInterval(() => {
     console.log(results);
 }, 10000);
 
+// const strategy = new TradingBot();
+// strategy.getLastBuy("BTCUSDT");
+
 module.exports.trade_api = serverless(app);

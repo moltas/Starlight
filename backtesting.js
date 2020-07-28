@@ -1,3 +1,5 @@
+const bodyParser = require("body-parser");
+const express = require("express");
 const chalk = require("chalk");
 const fs = require("fs");
 const csv = require("csv-parser");
@@ -6,6 +8,11 @@ const { asyncForEach } = require("./utils");
 
 const config = require("./config");
 const TradingBot = require("./tradingBot");
+
+const app = express();
+const port = 5050;
+
+app.use(bodyParser.json({ strict: false }));
 
 class BackTesting {
     constructor() {
@@ -54,28 +61,34 @@ class BackTesting {
     }
 }
 
-const testing = new BackTesting();
-testing.run("BTCUSDT");
+// const testing = new BackTesting();
+// testing.run("BTCUSDT");
 // testing.run("ETHUSDT");
 // testing.run("LTCUSDT");
 
-// const promiseArray = [];
+app.get("/collect", async (req, res) => {
+    const promiseArray = [];
 
-// config.forEach((item) => {
-//     const promise = new Promise((resolve, reject) => {
-//         const strategy = new TradingBot();
-//         strategy
-//             .collectBackTestingData(item.symbol)
-//             .then(() => {
-//                 console.log(chalk.green(`Fetching back testing data completed!`));
-//                 resolve();
-//             })
-//             .catch((err) => {
-//                 reject(err);
-//             });
-//     });
+    config.forEach((item) => {
+        const promise = new Promise((resolve, reject) => {
+            const strategy = new TradingBot();
+            strategy
+                .collectBackTestingData(item.symbol, 43200)
+                .then(() => {
+                    console.log(chalk.green(`Fetching back testing data completed!`));
+                    resolve();
+                })
+                .catch((err) => {
+                    reject(err);
+                });
+        });
 
-//     promiseArray.push(promise);
-// });
+        promiseArray.push(promise);
+    });
 
-// Promise.all(promiseArray);
+    Promise.all(promiseArray);
+
+    res.send("Collecting data!");
+});
+
+app.listen(port, () => console.log(`Running at port:${port}`));

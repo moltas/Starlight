@@ -447,7 +447,7 @@ class TradingBot {
         return totalAmount;
     }
 
-    async collectBackTestingData(symbol) {
+    async collectBackTestingData(symbol, times) {
         console.log(chalk.yellow("Collecting back test data..."));
         const csvWriter = createCsvWriter({
             path: `output/${symbol}_test.csv`,
@@ -458,7 +458,7 @@ class TradingBot {
             ],
         });
 
-        for (let i = 0; i < 18000; i++) {
+        for (let i = 0; i < times; i++) {
             await this.getLatestTickerData(symbol, csvWriter);
             await timeout(1000);
         }

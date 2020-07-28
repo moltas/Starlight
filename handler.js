@@ -43,20 +43,25 @@ app.get("/", async (req, res) => {
 //     res.send("Trading stopped");
 // });
 
-const strategy = new TradingBot();
-
 const promiseArray = [];
-let results;
+let results = {
+    BTCUSDT: null,
+    ETHUSDT: null,
+    LTCUSDT: null,
+    ADAUSDT: null,
+};
+console.log(results);
 
 config.forEach((item) => {
     const promise = new Promise((resolve, reject) => {
+        const strategy = new TradingBot();
         let interval = null;
         strategy
             .collectTradeData(item.symbol)
             .then(() => {
                 resolve();
                 interval = setIntervalAsync(async () => {
-                    results = await strategy.run(item);
+                    results[item.symbol] = await strategy.run(item);
                 }, 1000);
             })
             .catch((err) => {
@@ -68,10 +73,10 @@ config.forEach((item) => {
     promiseArray.push(promise);
 });
 
-setInterval(() => {
-    console.log(chalk.cyan(results));
-}, 60000);
-
 Promise.all(promiseArray);
+
+setInterval(() => {
+    console.log(results);
+}, 10000);
 
 module.exports.trade_api = serverless(app);

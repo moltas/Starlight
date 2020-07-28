@@ -19,36 +19,11 @@ app.get("/", async (req, res) => {
     res.send("Trade check finished");
 });
 
-// let interval;
-
-// app.get("/start", async (req, res) => {
-//     const strategy = new TradingBot(API_KEY, API_SECRET, PAPER);
-
-//     if (interval) clearInterval(interval);
-
-//     interval = setInterval(() => {
-//         strategy.run();
-//     }, 60000);
-
-//     console.log("Trading started");
-
-//     res.send("Trading started");
-// });
-
-// app.get("/stop", async (req, res) => {
-//     if (interval) clearInterval(interval);
-
-//     console.log("Trading stopped");
-
-//     res.send("Trading stopped");
-// });
-
 const promiseArray = [];
 let results = {
     BTCUSDT: null,
     ETHUSDT: null,
     LTCUSDT: null,
-    ADAUSDT: null,
 };
 console.log(results);
 

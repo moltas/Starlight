@@ -17,7 +17,8 @@ class TradingBot {
         this.totalProfit = 0;
         this.tradingData = [];
         this.positions = [];
-        this.balance = 1000;
+        this.balance = 10000;
+        this.amountOwned = 0;
     }
 
     results() {
@@ -203,10 +204,12 @@ class TradingBot {
         }
 
         if (isBacktest) {
-            this.positions.push({ symbol: item.symbol, price: item.close, amount: qty });
+            this.positions.push({ price: item.close, qty: qty, amount: item.close * qty });
+            this.amountOwned += qty;
             this.balance -= item.close * qty;
         } else {
-            await this.createTakeProfitLimitOrder(item, qty, stock);
+            await this.createBuyOrder(item, qty, stock);
+            // await this.createTakeProfitLimitOrder(item, qty, stock);
             // await this.createStopLimitOrder(item, qty, stock);
         }
 
@@ -241,7 +244,7 @@ class TradingBot {
             }
 
             const buyPrice = await this.getLastBuy(item.symbol, isBacktest);
-            const profit = qty * item.close - qty * buyPrice;
+            const profit = qty * item.close - buyPrice;
             console.log("profit is", profit);
 
             if (profit > 0.1) {
@@ -250,6 +253,8 @@ class TradingBot {
                 console.log(chalk.green(`selling ${item.symbol} in quantity: ${qty}`));
                 this.totalProfit += profit;
                 this.numberOfTrades += 1;
+                this.amountOwned = this.amountOwned - qty;
+                this.amountOwned = this.amountOwned < 0 ? 0 : this.amountOwned;
                 await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
                 return true;
             }
@@ -271,11 +276,7 @@ class TradingBot {
     async getPositions(symbol, isBacktest) {
         if (isBacktest) {
             if (symbol) {
-                const positions = this.positions.filter((x) => x.symbol === symbol);
-                let totalAmount = 0;
-                positions.forEach((x) => (totalAmount += x.amount));
-
-                return [{ free: totalAmount }];
+                return [{ free: this.amountOwned }];
             }
             return [{ free: 0 }];
         }
@@ -347,11 +348,12 @@ class TradingBot {
     async createTakeProfitLimitOrder(item, quantity, config) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
+        console.log(`close price: ${item.close}`);
         return await postRequest(
             "order",
-            `symbol=${item.symbol}&side=SELL&type=TAKE_PROFIT_LIMIT&timeInForce=gtc&quantity=${quantity.toFixed(config.precision)}&price=${(
+            `symbol=${item.symbol}&side=BUY&type=TAKE_PROFIT_LIMIT&timeInForce=gtc&quantity=${quantity.toFixed(config.precision)}&price=${(
                 item.close * config.takeProfitMultiplier
-            ).toFixed(config.decimals)}&stopPrice=${(item.close * 1.001).toFixed(config.decimals)}&timestamp=${timeInMilliseconds}`,
+            ).toFixed(config.decimals)}&stopPrice=${(item.close * 1.025).toFixed(config.decimals)}&timestamp=${timeInMilliseconds}`,
             isSigned
         );
     }
@@ -419,8 +421,10 @@ class TradingBot {
 
     async getLastBuy(symbol, isBacktest) {
         if (isBacktest) {
-            const lastBuy = this.positions.filter((x) => x.symbol === symbol);
-            return lastBuy && lastBuy.length > 0 ? lastBuy[0].price : null;
+            let totalAmount = 0;
+            this.positions.forEach((x) => (totalAmount += parseFloat(x.amount)));
+            this.positions = [];
+            return totalAmount;
         }
 
         const timeInMilliseconds = moment().valueOf();

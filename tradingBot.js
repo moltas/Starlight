@@ -18,14 +18,25 @@ class TradingBot {
         this.totalProfit = 0;
         this.tradingData = [];
         this.positions = [];
-        this.balance = 10000;
+        this.balance = 300;
         this.amountOwned = 0;
+
+        const fileContent = {
+            BTCUSDT: [],
+            ETHUSDT: [],
+            LTCUSDT: [],
+        };
+        fs.writeFile(filePath, JSON.stringify(fileContent), () => {
+            console.log("Resetting file");
+        });
     }
 
     results() {
         return {
             numberOfTrades: this.numberOfTrades,
             totalProfits: this.totalProfit,
+            amountOwned: this.amountOwned,
+            balance: this.balance,
         };
     }
 
@@ -88,7 +99,6 @@ class TradingBot {
 
     async handleTrade(stock, histData, isBacktest) {
         const shortenedHistData = histData.slice(histData.length - 100, histData.length);
-
         const closePrices = [];
         const dates = [];
 
@@ -175,8 +185,6 @@ class TradingBot {
             console.log(chalk.cyan("Sell signal reached"));
             await this.sellStock(mostRecentData, stock, isBacktest);
             this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
-        } else {
-            this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         }
     }
 
@@ -184,7 +192,7 @@ class TradingBot {
         const balance = await this.getAccountBalance(isBacktest);
         let qty = stock.minQty;
 
-        while (qty * item.close * 0.9 < stock.minNotional) {
+        while (qty * item.close < stock.minNotional) {
             qty += stock.stepSize;
         }
 
@@ -197,7 +205,7 @@ class TradingBot {
             return false;
         }
 
-        if (qty * item.close * 0.99 > balance) {
+        if (qty * item.close > balance) {
             console.log(
                 chalk.red(`Buy validation failed. Not enough balance (${balance}) to buy - ${stock.symbol} at price ${qty * item.close}`)
             );
@@ -211,7 +219,7 @@ class TradingBot {
         } else {
             await this.createBuyOrder(item, qty, stock);
             // await this.createTakeProfitLimitOrder(item, qty, stock);
-            // await this.createStopLimitOrder(item, qty, stock);
+            await this.createStopLimitOrder(item, qty, stock);
         }
 
         console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
@@ -248,7 +256,7 @@ class TradingBot {
             const profit = qty * item.close - buyPrice;
             console.log("profit is", profit);
 
-            if (profit > 0.1) {
+            if (profit > 0.01) {
                 if (!isBacktest) await this.createSellOrder(item, qty, stock);
 
                 console.log(chalk.green(`selling ${item.symbol} in quantity: ${qty}`));
@@ -256,6 +264,7 @@ class TradingBot {
                 this.numberOfTrades += 1;
                 this.amountOwned = this.amountOwned - qty;
                 this.amountOwned = this.amountOwned < 0 ? 0 : this.amountOwned;
+                this.balance += qty * item.close;
                 await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
                 return true;
             }

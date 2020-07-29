@@ -380,12 +380,12 @@ class TradingBot {
     async getHistorialData(symbol, useSeconds) {
         if (useSeconds) {
             const data = await getRequest("aggTrades", `symbol=${symbol}&limit=300`);
-            const formattedData = data.map((bar) => ({ close: bar.p, date: moment(bar.T).format("YYYY-MM-DD hh:mm:ss") }));
+            const formattedData = data.map((bar) => ({ close: bar.p, date: moment(bar.T).format("YYYY-MM-DD HH:mm:ss") }));
             const dataWithoutDuplicates = mergeObjectsInUnique(formattedData, "date");
             return dataWithoutDuplicates;
         } else {
             const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=100`);
-            const formattedData = data.map((bar) => ({ close: bar[4], date: moment(bar[6]).format("YYYY-MM-DD hh:mm") }));
+            const formattedData = data.map((bar) => ({ close: bar[4], date: moment(bar[6]).format("YYYY-MM-DD HH:mm") }));
 
             return formattedData;
         }
@@ -393,7 +393,7 @@ class TradingBot {
 
     async getLatestTickerData(symbol, writer) {
         const data = await getRequest("ticker/price", `symbol=${symbol}`);
-        const formattedData = { symbol: data.symbol, close: data.price, date: moment().format("YYYY-MM-DD hh:mm:ss") };
+        const formattedData = { symbol: data.symbol, close: data.price, date: moment().format("YYYY-MM-DD HH:mm:ss") };
 
         if (writer) {
             await writer.writeRecords([formattedData]);

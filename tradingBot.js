@@ -183,8 +183,8 @@ class TradingBot {
             }
         } else if (sellSignal) {
             console.log(chalk.cyan("Sell signal reached"));
-            await this.sellStock(mostRecentData, stock, isBacktest);
-            this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
+            const stockSold = await this.sellStock(mostRecentData, stock, isBacktest);
+            if (stockSold) this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         }
     }
 
@@ -219,7 +219,7 @@ class TradingBot {
         } else {
             await this.createBuyOrder(item, qty, stock);
             // await this.createTakeProfitLimitOrder(item, qty, stock);
-            await this.createStopLimitOrder(item, qty, stock);
+            // await this.createStopLimitOrder(item, qty, stock);
         }
 
         console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));

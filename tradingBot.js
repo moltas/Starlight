@@ -238,7 +238,7 @@ class TradingBot {
             }
 
             const buyPrice = await this.getLastBuy(item.symbol, isBacktest);
-            const profit = qty * item.close - buyPrice;
+            const profit = qty * item.close - buyPrice * qty;
             console.log(`${item.symbol} profit is: ${profit}`);
 
             if (profit > 0.01) {

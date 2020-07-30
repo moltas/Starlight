@@ -11,7 +11,7 @@ module.exports = [
         histogramLow: -0.2,
         histogramHigh: 0.2,
         stopLossMultiplier: 0.999,
-        stopLimitMultiplier: 0.995,
+        stopLimitMultiplier: 0.9985,
         takeProfitMultiplier: 1.04,
     },
     {
@@ -40,8 +40,8 @@ module.exports = [
         rsiHigh: 65,
         histogramLow: -0.005,
         histogramHigh: 0.005,
-        stopLossMultiplier: 0.998,
-        stopLimitMultiplier: 0.994,
+        stopLossMultiplier: 0.9994,
+        stopLimitMultiplier: 0.999,
         takeProfitMultiplier: 1.04,
     },
 ];

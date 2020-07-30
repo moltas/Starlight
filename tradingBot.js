@@ -157,32 +157,17 @@ class TradingBot {
         // let priceAboveAvgPrice = avgPrice < mostRecentData.close;
         // let priceBelowAvgPrice = avgPrice > mostRecentData.close;
 
-        // console.log(
-        //     `{symbol: ${chalk.magenta(mostRecentData.symbol)}, rsi: ${
-        //         hasRsiBeenAbove70Last10Bars || hasRsiBeenBelow30Last10Bars
-        //             ? chalk.green(mostRecentData.rsi)
-        //             : chalk.cyan(mostRecentData.rsi)
-        //     }, macd: ${
-        //         (hasRsiBeenAbove70Last10Bars && mostRecentData.macd < mostRecentData.signal) ||
-        //         (hasRsiBeenBelow30Last10Bars && mostRecentData.macd > mostRecentData.signal)
-        //             ? chalk.green("true")
-        //             : chalk.cyan("false")
-        //     }, histogram: ${
-        //         isHistogramMidpointReached && (hasHistogramBeenLow || hasHistogramBeenHigh) ? chalk.green("true") : chalk.yellow("false")
-        //     }, close: ${chalk.cyan(mostRecentData.close)}, date: ${chalk.yellow(mostRecentData.date)}}`
-        // );
-
         const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached;
         const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached;
 
         if (buySignal) {
-            console.log(chalk.cyan("Buy signal reached"));
+            console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {
                 const stockBought = await this.buyStock(mostRecentData, stock, isBacktest);
                 if (stockBought) this.stockWaitlist.push(stock.symbol);
             }
         } else if (sellSignal) {
-            console.log(chalk.cyan("Sell signal reached"));
+            console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
             const stockSold = await this.sellStock(mostRecentData, stock, isBacktest);
             if (stockSold) this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         }
@@ -219,7 +204,7 @@ class TradingBot {
         } else {
             await this.createBuyOrder(item, qty, stock);
             // await this.createTakeProfitLimitOrder(item, qty, stock);
-            // await this.createStopLimitOrder(item, qty, stock);
+            await this.createStopLimitOrder(item, qty, stock);
         }
 
         console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
@@ -254,7 +239,7 @@ class TradingBot {
 
             const buyPrice = await this.getLastBuy(item.symbol, isBacktest);
             const profit = qty * item.close - buyPrice;
-            console.log("profit is", profit);
+            console.log(`${item.symbol} profit is: ${profit}`);
 
             if (profit > 0.01) {
                 if (!isBacktest) await this.createSellOrder(item, qty, stock);

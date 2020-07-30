@@ -153,12 +153,13 @@ class TradingBot {
         const mostRecentData = tradeData[tradeData.length - 1];
         if (!mostRecentData) return;
 
-        // const avgPrice = await this.getCurrentAvgPrice(stock.symbol);
-        // let priceAboveAvgPrice = avgPrice < mostRecentData.close;
-        // let priceBelowAvgPrice = avgPrice > mostRecentData.close;
+        const avgPrice = await this.getCurrentAvgPrice(stock.symbol, tradeData, isBacktest);
 
-        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached;
-        const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached;
+        let priceAboveAvgPrice = avgPrice < mostRecentData.close;
+        let priceBelowAvgPrice = avgPrice > mostRecentData.close;
+
+        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached && priceBelowAvgPrice;
+        const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
 
         if (buySignal) {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
@@ -168,8 +169,8 @@ class TradingBot {
             }
         } else if (sellSignal) {
             console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
-            const stockSold = await this.sellStock(mostRecentData, stock, isBacktest);
-            if (stockSold) this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
+            await this.sellStock(mostRecentData, stock, isBacktest);
+            this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         }
     }
 
@@ -238,6 +239,9 @@ class TradingBot {
             }
 
             const buyPrice = await this.getLastBuy(item.symbol, isBacktest);
+            if (buyPrice === 0) return true;
+            console.log(chalk.yellow(buyPrice));
+
             const profit = qty * item.close - buyPrice * qty;
             console.log(`${item.symbol} profit is: ${profit}`);
 
@@ -310,7 +314,13 @@ class TradingBot {
         return status;
     }
 
-    async getCurrentAvgPrice(symbol) {
+    async getCurrentAvgPrice(symbol, priceData, isBacktest) {
+        if (isBacktest) {
+            let totalAmount = 0;
+            priceData.forEach((x) => (totalAmount += parseFloat(x.close)));
+            return totalAmount / priceData.length;
+        }
+
         const { price } = await getRequest("avgPrice", `symbol=${symbol}`);
         return price;
     }

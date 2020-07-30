@@ -192,7 +192,7 @@ class TradingBot {
         const balance = await this.getAccountBalance(isBacktest);
         let qty = stock.minQty;
 
-        while (qty * item.close < stock.minNotional) {
+        while (qty * item.close * 0.9 < stock.minNotional) {
             qty += stock.stepSize;
         }
 

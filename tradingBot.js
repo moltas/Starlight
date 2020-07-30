@@ -429,11 +429,11 @@ class TradingBot {
         let index = data.length - 1;
 
         while (index > 0) {
-            index--;
             if (data[index].isBuyer === false) {
                 data = data.slice(index, data.length - 1);
                 break;
             }
+            index--;
         }
 
         let totalAmount = 0;

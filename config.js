@@ -8,7 +8,7 @@ module.exports = [
         minNotional: 10.0,
         rsiLow: 25,
         rsiHigh: 65,
-        histogramLow: -0.2,
+        histogramLow: -0.5,
         histogramHigh: 0.2,
         stopLossMultiplier: 0.999,
         stopLimitMultiplier: 0.9985,

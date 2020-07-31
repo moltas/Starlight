@@ -382,7 +382,7 @@ class TradingBot {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
 
-        const atrTakeProfit = parseFloat(item.close) + item.atr * 1.5;
+        const atrTakeProfit = parseFloat(item.close) + item.atr * 1.3;
         const atrStopLoss = item.close - item.atr * 2;
         const atrStopLimit = item.close - item.atr * 2.2;
 

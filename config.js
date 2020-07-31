@@ -12,7 +12,7 @@ module.exports = [
         histogramHigh: 0.2,
         stopLossMultiplier: 0.999,
         stopLimitMultiplier: 0.9985,
-        takeProfitMultiplier: 1.04,
+        takeProfitMultiplier: 1.01,
     },
     {
         symbol: "ETHUSDT",
@@ -27,7 +27,7 @@ module.exports = [
         histogramHigh: 0.02,
         stopLossMultiplier: 0.998,
         stopLimitMultiplier: 0.994,
-        takeProfitMultiplier: 1.03,
+        takeProfitMultiplier: 1.01,
     },
     {
         symbol: "LTCUSDT",
@@ -42,6 +42,6 @@ module.exports = [
         histogramHigh: 0.005,
         stopLossMultiplier: 0.9994,
         stopLimitMultiplier: 0.999,
-        takeProfitMultiplier: 1.04,
+        takeProfitMultiplier: 1.02,
     },
 ];

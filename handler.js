@@ -20,7 +20,6 @@ app.get("/", async (req, res) => {
         ETHUSDT: null,
         LTCUSDT: null,
     };
-    console.log(results);
 
     config.forEach((item) => {
         const promise = new Promise((resolve, reject) => {

@@ -8,7 +8,7 @@ var path = require("path");
 
 const { mergeObjectsInUnique, timeout, getRequest, postRequest, deleteRequest } = require("./utils");
 
-const filePath = path.resolve("output/trades.json");
+const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}.json`);
 
 class TradingBot {
     constructor() {
@@ -45,8 +45,9 @@ class TradingBot {
         const csvWriter = createCsvWriter({
             path: path.resolve(`output/${symbol}.csv`),
             header: [
-                { id: "symbol", title: "symbol" },
                 { id: "close", title: "close" },
+                { id: "high", title: "high" },
+                { id: "low", title: "low" },
                 { id: "date", title: "date" },
             ],
         });
@@ -100,10 +101,14 @@ class TradingBot {
     async handleTrade(stock, histData, isBacktest) {
         const shortenedHistData = histData.slice(histData.length - 100, histData.length);
         const closePrices = [];
+        const highPrices = [];
+        const lowPrices = [];
         const dates = [];
 
         shortenedHistData.forEach((bar) => {
             closePrices.push(bar.close);
+            highPrices.push(bar.high);
+            lowPrices.push(bar.low);
             dates.push(bar.date);
         });
 
@@ -111,6 +116,7 @@ class TradingBot {
         let signalLine = [];
         let histogram = [];
         let rsi = [];
+        let atr = [];
 
         const lengthDiff = 25;
         dates.splice(0, lengthDiff);
@@ -127,6 +133,12 @@ class TradingBot {
             histogram = result[2];
         });
 
+        await tulind.indicators.atr.indicator([highPrices, lowPrices, closePrices], [20], (err, result) => {
+            const diff = lengthDiff - 20;
+            atr = result[0];
+            atr.splice(0, diff);
+        });
+
         closePrices.splice(0, lengthDiff);
 
         const tradeData = macdLine.map((x, i) => ({
@@ -137,6 +149,7 @@ class TradingBot {
             date: dates[i],
             close: closePrices[i],
             rsi: rsi[i],
+            atr: atr[i],
         }));
 
         const last10Bars = tradeData.slice(tradeData.length - 15, tradeData.length);
@@ -159,19 +172,22 @@ class TradingBot {
         let priceBelowAvgPrice = avgPrice > mostRecentData.close;
 
         const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached && priceBelowAvgPrice;
-        const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
+        // const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
 
-        if (buySignal) {
+        const openOrders = await this.getOpenOrders(stock.symbol);
+
+        if (buySignal && openOrders.length === 0) {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {
-                const stockBought = await this.buyStock(mostRecentData, stock, isBacktest);
-                if (stockBought) this.stockWaitlist.push(stock.symbol);
+                await this.buyStock(mostRecentData, stock, isBacktest);
+                // if (stockBought) this.stockWaitlist.push(stock.symbol);
             }
-        } else if (sellSignal) {
-            console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
-            await this.sellStock(mostRecentData, stock, isBacktest);
-            this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         }
+        // } else if (sellSignal) {
+        //     console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
+        //     await this.sellStock(mostRecentData, stock, isBacktest);
+        //     this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
+        // }
     }
 
     async buyStock(item, stock, isBacktest) {
@@ -204,8 +220,7 @@ class TradingBot {
             this.balance -= item.close * qty;
         } else {
             await this.createBuyOrder(item, qty, stock);
-            // await this.createTakeProfitLimitOrder(item, qty, stock);
-            await this.createStopLimitOrder(item, qty, stock);
+            await this.createSellOrder(item, qty, stock);
         }
 
         console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
@@ -358,7 +373,7 @@ class TradingBot {
             "order",
             `symbol=${item.symbol}&side=BUY&type=TAKE_PROFIT_LIMIT&timeInForce=gtc&quantity=${quantity.toFixed(config.precision)}&price=${(
                 item.close * config.takeProfitMultiplier
-            ).toFixed(config.decimals)}&stopPrice=${(item.close * 1.025).toFixed(config.decimals)}&timestamp=${timeInMilliseconds}`,
+            ).toFixed(config.decimals)}&stopPrice=${(item.close * 1.002).toFixed(config.decimals)}&timestamp=${timeInMilliseconds}`,
             isSigned
         );
     }
@@ -366,9 +381,14 @@ class TradingBot {
     async createSellOrder(item, quantity, config) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
-        const price = parseFloat(item.close * config.takeProfitMultiplier);
-        const stopPrice = parseFloat(item.close * config.stopLossMultiplier);
-        const stopLimitPrice = parseFloat(item.close * config.stopLimitMultiplier);
+
+        const atrTakeProfit = parseFloat(item.close) + item.atr * 1.5;
+        const atrStopLoss = item.close - item.atr * 2;
+        const atrStopLimit = item.close - item.atr * 2.2;
+
+        const price = parseFloat(atrTakeProfit);
+        const stopPrice = parseFloat(atrStopLoss);
+        const stopLimitPrice = parseFloat(atrStopLimit);
 
         return await postRequest(
             "order/oco",
@@ -396,8 +416,14 @@ class TradingBot {
     }
 
     async getLatestTickerData(symbol, writer) {
-        const data = await getRequest("ticker/price", `symbol=${symbol}`);
-        const formattedData = { symbol: data.symbol, close: data.price, date: moment().format("YYYY-MM-DD HH:mm:ss") };
+        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=1`);
+
+        const formattedData = data.map((x) => ({
+            close: x[4],
+            high: x[2],
+            low: x[3],
+            date: moment().format("YYYY-MM-DD HH:mm:ss"),
+        }))[0];
 
         if (writer) {
             await writer.writeRecords([formattedData]);
@@ -457,8 +483,9 @@ class TradingBot {
         const csvWriter = createCsvWriter({
             path: path.resolve(`output/${symbol}_test.csv`),
             header: [
-                { id: "symbol", title: "symbol" },
                 { id: "close", title: "close" },
+                { id: "high", title: "high" },
+                { id: "low", title: "low" },
                 { id: "date", title: "date" },
             ],
         });

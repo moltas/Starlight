@@ -13,7 +13,7 @@ app.use(bodyParser.json({ strict: false }));
 
 let intervalObj = {};
 
-app.get("/", async (req, res) => {
+app.get("/start", async (req, res) => {
     const promiseArray = [];
     let results = {
         BTCUSDT: null,

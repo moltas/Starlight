@@ -179,7 +179,6 @@ class TradingBot {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {
                 await this.buyStock(mostRecentData, stock, isBacktest);
-                // if (stockBought) this.stockWaitlist.push(stock.symbol);
             }
         }
         // } else if (sellSignal) {
@@ -190,6 +189,8 @@ class TradingBot {
     }
 
     async buyStock(item, stock, isBacktest) {
+        this.stockWaitlist.push(stock.symbol);
+
         const balance = await this.getAccountBalance(isBacktest);
         let qty = stock.minQty;
 
@@ -229,6 +230,7 @@ class TradingBot {
 
         this.numberOfTrades += 1;
 
+        this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         return true;
     }
 
@@ -381,9 +383,9 @@ class TradingBot {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
 
-        const atrTakeProfit = parseFloat(item.close) + item.atr * 1.3;
-        const atrStopLoss = item.close - item.atr * 2;
-        const atrStopLimit = item.close - item.atr * 2.2;
+        const atrTakeProfit = parseFloat(item.close) + item.atr * 3.5;
+        const atrStopLoss = item.close - item.atr * 4;
+        const atrStopLimit = item.close - item.atr * 4.2;
 
         const price = parseFloat(atrTakeProfit);
         const stopPrice = parseFloat(atrStopLoss);

@@ -166,13 +166,12 @@ class TradingBot {
         const mostRecentData = tradeData[tradeData.length - 1];
         if (!mostRecentData) return;
 
-        const avgPrice = await this.getCurrentAvgPrice(stock.symbol, tradeData, isBacktest);
+        // const avgPrice = await this.getCurrentAvgPrice(stock.symbol, tradeData, isBacktest);
+        // let priceAboveAvgPrice = avgPrice < mostRecentData.close;
+        // let priceBelowAvgPrice = avgPrice > mostRecentData.close;
 
-        let priceAboveAvgPrice = avgPrice < mostRecentData.close;
-        let priceBelowAvgPrice = avgPrice > mostRecentData.close;
-
-        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached && priceBelowAvgPrice;
-        // const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
+        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached;
+        // const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached;
 
         const openOrders = await this.getOpenOrders(stock.symbol);
 

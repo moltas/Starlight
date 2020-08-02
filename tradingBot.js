@@ -212,13 +212,6 @@ class TradingBot {
 
             if (qty > positionWithTicker.free) qty -= stock.stepSize;
 
-            if (!isBacktest) {
-                const openOrders = await this.getOpenOrders(item.symbol);
-                if (openOrders.length > 0) {
-                    await this.cancelOpenOrders(item.symbol);
-                }
-            }
-
             const buyPrice = await this.getLastBuy(item.symbol, isBacktest);
             if (buyPrice === 0) return true;
             console.log(chalk.yellow(buyPrice));
@@ -227,6 +220,13 @@ class TradingBot {
             console.log(`${item.symbol} profit is: ${profit}`);
 
             if (profit > 0.5) {
+                if (!isBacktest) {
+                    const openOrders = await this.getOpenOrders(item.symbol);
+                    if (openOrders.length > 0) {
+                        await this.cancelOpenOrders(item.symbol);
+                    }
+                }
+
                 if (!isBacktest) await this.createSellOrder(item, qty, stock);
 
                 console.log(chalk.green(`selling ${item.symbol} in quantity: ${qty}`));

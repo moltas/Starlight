@@ -30,7 +30,7 @@ app.get("/start", async (req, res) => {
                     resolve();
                     intervalObj[item.symbol] = setIntervalAsync(async () => {
                         results[item.symbol] = await strategy.run(item);
-                    }, 10000);
+                    }, 1000);
                 })
                 .catch((err) => {
                     clearIntervalAsync(intervalObj[item.symbol]);

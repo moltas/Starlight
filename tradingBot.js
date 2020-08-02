@@ -393,7 +393,7 @@ class TradingBot {
     }
 
     async getLatestTickerData(symbol, writer) {
-        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=100`);
+        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=1`);
 
         const formattedData = data.map((x) => ({
             close: x[4],

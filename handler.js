@@ -1,6 +1,5 @@
 const bodyParser = require("body-parser");
 const express = require("express");
-const chalk = require("chalk");
 const { setIntervalAsync, clearIntervalAsync } = require("set-interval-async/dynamic");
 
 const config = require("./config");

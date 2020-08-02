@@ -467,10 +467,10 @@ class TradingBot {
             ],
         });
 
-        // for (let i = 0; i < 100; i++) {
-        //     await this.getLatestTickerData(symbol, csvWriter);
-        //     await timeout(1000);
-        // }
+        for (let i = 0; i < 100; i++) {
+            await this.getLatestTickerData(symbol, csvWriter);
+            await timeout(1000);
+        }
 
         return new Promise((resolve, reject) => {
             try {

@@ -40,40 +40,6 @@ class TradingBot {
         };
     }
 
-    async collectTradeData(symbol) {
-        console.log(chalk.yellow("Collecting data..."));
-        const csvWriter = createCsvWriter({
-            path: path.resolve(`output/${symbol}.csv`),
-            header: [
-                { id: "close", title: "close" },
-                { id: "high", title: "high" },
-                { id: "low", title: "low" },
-                { id: "date", title: "date" },
-            ],
-        });
-
-        for (let i = 0; i < 100; i++) {
-            await this.getLatestTickerData(symbol, csvWriter);
-            await timeout(1000);
-        }
-
-        return new Promise((resolve, reject) => {
-            try {
-                fs.createReadStream(path.resolve(`output/${symbol}.csv`))
-                    .pipe(csv())
-                    .on("data", (row) => {
-                        this.tradingData.push(row);
-                    })
-                    .on("end", () => {
-                        console.log(chalk.green("Data collected!"));
-                        resolve();
-                    });
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
     async run(config, backtestData) {
         if (!this.configInitialized && !backtestData) {
             await this.getExchangeData(config);
@@ -92,7 +58,7 @@ class TradingBot {
         } catch (error) {
             const errMsg = error.message;
             console.log(errMsg);
-            return Promise.reject();
+            return Promise.reject(errMsg);
         }
 
         return this.results();
@@ -166,12 +132,12 @@ class TradingBot {
         const mostRecentData = tradeData[tradeData.length - 1];
         if (!mostRecentData) return;
 
-        // const avgPrice = await this.getCurrentAvgPrice(stock.symbol, tradeData, isBacktest);
-        // let priceAboveAvgPrice = avgPrice < mostRecentData.close;
-        // let priceBelowAvgPrice = avgPrice > mostRecentData.close;
+        const avgPrice = await this.getCurrentAvgPrice(stock.symbol, tradeData, isBacktest);
+        let priceAboveAvgPrice = avgPrice < mostRecentData.close;
+        let priceBelowAvgPrice = avgPrice > mostRecentData.close;
 
-        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached;
-        // const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached;
+        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached && priceBelowAvgPrice;
+        const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
 
         const openOrders = await this.getOpenOrders(stock.symbol);
 
@@ -180,12 +146,11 @@ class TradingBot {
             if (!this.stockWaitlist.includes(stock.symbol)) {
                 await this.buyStock(mostRecentData, stock, isBacktest);
             }
+        } else if (sellSignal) {
+            console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
+            await this.sellStock(mostRecentData, stock, isBacktest);
+            this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         }
-        // } else if (sellSignal) {
-        //     console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
-        //     await this.sellStock(mostRecentData, stock, isBacktest);
-        //     this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
-        // }
     }
 
     async buyStock(item, stock, isBacktest) {
@@ -220,7 +185,7 @@ class TradingBot {
             this.balance -= item.close * qty;
         } else {
             await this.createBuyOrder(item, qty, stock);
-            await this.createSellOrder(item, qty, stock);
+            await this.createOcoSellOrder(item, qty, stock);
         }
 
         console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
@@ -261,7 +226,7 @@ class TradingBot {
             const profit = qty * item.close - buyPrice * qty;
             console.log(`${item.symbol} profit is: ${profit}`);
 
-            if (profit > 0.01) {
+            if (profit > 0.5) {
                 if (!isBacktest) await this.createSellOrder(item, qty, stock);
 
                 console.log(chalk.green(`selling ${item.symbol} in quantity: ${qty}`));
@@ -352,6 +317,17 @@ class TradingBot {
         );
     }
 
+    async createSellOrder(item, quantity, config) {
+        const timeInMilliseconds = moment().valueOf();
+        const isSigned = true;
+
+        return await postRequest(
+            "order",
+            `symbol=${item.symbol}&side=SELL&type=MARKET&quantity=${quantity.toFixed(config.precision)}&timestamp=${timeInMilliseconds}`,
+            isSigned
+        );
+    }
+
     async createStopLimitOrder(item, quantity, config) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
@@ -379,7 +355,7 @@ class TradingBot {
         );
     }
 
-    async createSellOrder(item, quantity, config) {
+    async createOcoSellOrder(item, quantity, config) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
 
@@ -477,6 +453,40 @@ class TradingBot {
         data.forEach((x) => (totalAmount += parseFloat(x.price) * parseFloat(x.qty)));
 
         return totalAmount;
+    }
+
+    async collectTradeData(symbol) {
+        console.log(chalk.yellow("Collecting data..."));
+        const csvWriter = createCsvWriter({
+            path: path.resolve(`output/${symbol}.csv`),
+            header: [
+                { id: "close", title: "close" },
+                { id: "high", title: "high" },
+                { id: "low", title: "low" },
+                { id: "date", title: "date" },
+            ],
+        });
+
+        for (let i = 0; i < 100; i++) {
+            await this.getLatestTickerData(symbol, csvWriter);
+            await timeout(1000);
+        }
+
+        return new Promise((resolve, reject) => {
+            try {
+                fs.createReadStream(path.resolve(`output/${symbol}.csv`))
+                    .pipe(csv())
+                    .on("data", (row) => {
+                        this.tradingData.push(row);
+                    })
+                    .on("end", () => {
+                        console.log(chalk.green("Data collected!"));
+                        resolve();
+                    });
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     async collectBackTestingData(symbol, times) {

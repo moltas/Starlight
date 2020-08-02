@@ -393,7 +393,7 @@ class TradingBot {
     }
 
     async getLatestTickerData(symbol, writer) {
-        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=1`);
+        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=100`);
 
         const formattedData = data.map((x) => ({
             close: x[4],
@@ -467,10 +467,10 @@ class TradingBot {
             ],
         });
 
-        for (let i = 0; i < 100; i++) {
-            await this.getLatestTickerData(symbol, csvWriter);
-            await timeout(1000);
-        }
+        // for (let i = 0; i < 100; i++) {
+        //     await this.getLatestTickerData(symbol, csvWriter);
+        //     await timeout(1000);
+        // }
 
         return new Promise((resolve, reject) => {
             try {

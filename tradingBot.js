@@ -190,7 +190,7 @@ class TradingBot {
             this.balance -= item.close * qty;
         } else {
             await this.createBuyOrder(item, qty, stock);
-            await this.createStopLimitOrder(item, qty, stock);
+            await this.setStopLimit(item, stock, isBacktest);
             // await this.createOcoSellOrder(item, qty, stock);
         }
 

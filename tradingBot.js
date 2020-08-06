@@ -129,7 +129,7 @@ class TradingBot {
         const isHistogramMidpointReached =
             (last3Bars[2].histogram > 0 && last3Bars[1].histogram < 0) || (last3Bars[2].histogram < 0 && last3Bars[1].histogram > 0);
 
-        const isPriceTrendingUp = last3Bars[2] > last3Bars[0];
+        const isPriceTrendingUp = last3Bars[2].close > last3Bars[0].close;
 
         const mostRecentData = tradeData[tradeData.length - 1];
         if (!mostRecentData) return;

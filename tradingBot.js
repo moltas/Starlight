@@ -143,6 +143,10 @@ class TradingBot {
 
         const openOrders = await this.getOpenOrders(stock.symbol);
 
+        console.log(
+            `isPriceTredingUp: ${isPriceTrendingUp}, openOrder length: ${openOrders.length}, order price: ${openOrders[0].price}, current price: ${mostRecentData.close}`
+        );
+
         if (buySignal && openOrders.length === 0) {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {

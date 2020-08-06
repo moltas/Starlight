@@ -154,7 +154,7 @@ class TradingBot {
         //     console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
         //     await this.sellStock(mostRecentData, stock, isBacktest);
         //     this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
-        else if (isPriceTrendingUp && openOrders.length > 0) {
+        else if (isPriceTrendingUp && openOrders.length > 0 && openOrders[0].price < mostRecentData.close) {
             await this.setStopLimit(mostRecentData, stock, isBacktest);
         }
     }

@@ -147,6 +147,7 @@ class TradingBot {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {
                 await this.buyStock(mostRecentData, stock, isBacktest);
+                this.stockWaitlist.push(stock.symbol);
             }
         }
         // } else if (sellSignal) {
@@ -232,6 +233,8 @@ class TradingBot {
 
                 await this.createStopLimitOrder(item, qty, stock);
             }
+
+            this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
 
             console.log(chalk.green(`Setting stop limit for ${item.symbol} in quantity: ${qty}`));
             // this.totalProfit += profit;

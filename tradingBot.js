@@ -129,8 +129,6 @@ class TradingBot {
         const isHistogramMidpointReached =
             (last3Bars[2].histogram > 0 && last3Bars[1].histogram < 0) || (last3Bars[2].histogram < 0 && last3Bars[1].histogram > 0);
 
-        const isPriceTrendingUp = last3Bars[2].close > last3Bars[0].close;
-
         const mostRecentData = tradeData[tradeData.length - 1];
         if (!mostRecentData) return;
 
@@ -144,9 +142,9 @@ class TradingBot {
         const openOrders = await this.getOpenOrders(stock.symbol);
 
         console.log(
-            `isPriceTredingUp: ${isPriceTrendingUp}, openOrder length: ${openOrders.length}, order price: ${
-                openOrders[0].stopPrice
-            }, current price: ${mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier}`
+            `openOrder length: ${openOrders.length}, order price: ${openOrders.length > 0 ? openOrders[0].stopPrice : 0}, current price: ${
+                mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier
+            }`
         );
 
         if (buySignal && openOrders.length === 0) {
@@ -160,11 +158,7 @@ class TradingBot {
         //     console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
         //     await this.sellStock(mostRecentData, stock, isBacktest);
         //     this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
-        else if (
-            isPriceTrendingUp &&
-            openOrders.length > 0 &&
-            openOrders[0].stopPrice < mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier
-        ) {
+        else if (openOrders.length > 0 && openOrders[0].stopPrice < mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier) {
             await this.setStopLimit(mostRecentData, stock, isBacktest);
         }
     }

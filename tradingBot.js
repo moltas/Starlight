@@ -144,7 +144,9 @@ class TradingBot {
         const openOrders = await this.getOpenOrders(stock.symbol);
 
         console.log(
-            `isPriceTredingUp: ${isPriceTrendingUp}, openOrder length: ${openOrders.length}, order price: ${openOrders[0].price}, current price: ${mostRecentData.close}`
+            `isPriceTredingUp: ${isPriceTrendingUp}, openOrder length: ${openOrders.length}, order price: ${
+                openOrders[0].stopPrice
+            }, current price: ${mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier}`
         );
 
         if (buySignal && openOrders.length === 0) {
@@ -158,7 +160,11 @@ class TradingBot {
         //     console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
         //     await this.sellStock(mostRecentData, stock, isBacktest);
         //     this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
-        else if (isPriceTrendingUp && openOrders.length > 0 && openOrders[0].price < mostRecentData.close) {
+        else if (
+            isPriceTrendingUp &&
+            openOrders.length > 0 &&
+            openOrders[0].stopPrice < mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier
+        ) {
             await this.setStopLimit(mostRecentData, stock, isBacktest);
         }
     }

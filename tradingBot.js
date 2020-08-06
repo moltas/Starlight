@@ -190,8 +190,7 @@ class TradingBot {
             this.balance -= item.close * qty;
         } else {
             await this.createBuyOrder(item, qty, stock);
-            await this.setStopLimit(item, stock, isBacktest);
-            // await this.createOcoSellOrder(item, qty, stock);
+            await this.createStopLimitOrder(item, qty, stock);
         }
 
         console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
@@ -218,32 +217,30 @@ class TradingBot {
 
             if (qty > positionWithTicker.free) qty -= stock.stepSize;
 
-            const buyPrice = await this.getLastBuy(item.symbol, isBacktest);
-            if (buyPrice === 0) return true;
-            console.log(chalk.yellow(buyPrice));
+            // const buyPrice = await this.getLastBuy(item.symbol, isBacktest);
+            // if (buyPrice === 0) return true;
+            // console.log(chalk.yellow(buyPrice));
 
-            const profit = qty * item.close - buyPrice * qty;
-            console.log(`${item.symbol} profit is: ${profit}`);
+            // const profit = qty * item.close - buyPrice * qty;
+            // console.log(`${item.symbol} profit is: ${profit}`);
 
-            if (profit > 0.01) {
-                if (!isBacktest) {
-                    const openOrders = await this.getOpenOrders(item.symbol);
-                    if (openOrders.length > 0) {
-                        await this.cancelOpenOrders(item.symbol);
-                    }
-
-                    await this.createStopLimitOrder(item, qty, stock);
+            if (!isBacktest) {
+                const openOrders = await this.getOpenOrders(item.symbol);
+                if (openOrders.length > 0) {
+                    await this.cancelOpenOrders(item.symbol);
                 }
 
-                console.log(chalk.green(`Setting stop limit for ${item.symbol} in quantity: ${qty}`));
-                // this.totalProfit += profit;
-                // this.numberOfTrades += 1;
-                // this.amountOwned = this.amountOwned - qty;
-                // this.amountOwned = this.amountOwned < 0 ? 0 : this.amountOwned;
-                // this.balance += qty * item.close;
-                await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
-                return true;
+                await this.createStopLimitOrder(item, qty, stock);
             }
+
+            console.log(chalk.green(`Setting stop limit for ${item.symbol} in quantity: ${qty}`));
+            // this.totalProfit += profit;
+            // this.numberOfTrades += 1;
+            // this.amountOwned = this.amountOwned - qty;
+            // this.amountOwned = this.amountOwned < 0 ? 0 : this.amountOwned;
+            // this.balance += qty * item.close;
+            await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
+            return true;
         }
 
         return false;

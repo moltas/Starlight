@@ -50,8 +50,8 @@ class TradingBot {
             if (backtestData) {
                 this.tradingData = backtestData;
             } else {
-                const latestTickerData = await this.getLatestTickerData(config.symbol);
-                this.tradingData.push(latestTickerData);
+                const tradingData = await this.getLatestTickerData(config.symbol);
+                this.tradingData = tradingData;
             }
 
             await this.handleTrade(config, this.tradingData, !!backtestData);
@@ -129,15 +129,17 @@ class TradingBot {
         const isHistogramMidpointReached =
             (last3Bars[2].histogram > 0 && last3Bars[1].histogram < 0) || (last3Bars[2].histogram < 0 && last3Bars[1].histogram > 0);
 
+        const isPriceTrendingUp = last3Bars[2] > last3Bars[0];
+
         const mostRecentData = tradeData[tradeData.length - 1];
         if (!mostRecentData) return;
 
-        const avgPrice = await this.getCurrentAvgPrice(stock.symbol, tradeData, isBacktest);
-        let priceAboveAvgPrice = avgPrice < mostRecentData.close;
-        let priceBelowAvgPrice = avgPrice > mostRecentData.close;
+        // const avgPrice = await this.getCurrentAvgPrice(stock.symbol, tradeData, isBacktest);
+        // let priceAboveAvgPrice = avgPrice < mostRecentData.close;
+        // let priceBelowAvgPrice = avgPrice > mostRecentData.close;
 
-        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached && priceBelowAvgPrice;
-        const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
+        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached;
+        // const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
 
         const openOrders = await this.getOpenOrders(stock.symbol);
 
@@ -146,10 +148,13 @@ class TradingBot {
             if (!this.stockWaitlist.includes(stock.symbol)) {
                 await this.buyStock(mostRecentData, stock, isBacktest);
             }
-        } else if (sellSignal) {
-            console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
-            await this.sellStock(mostRecentData, stock, isBacktest);
-            this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
+        }
+        // } else if (sellSignal) {
+        //     console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
+        //     await this.sellStock(mostRecentData, stock, isBacktest);
+        //     this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
+        else if (isPriceTrendingUp && openOrders.length > 0) {
+            await this.setStopLimit(mostRecentData, stock, isBacktest);
         }
     }
 
@@ -185,7 +190,8 @@ class TradingBot {
             this.balance -= item.close * qty;
         } else {
             await this.createBuyOrder(item, qty, stock);
-            await this.createOcoSellOrder(item, qty, stock);
+            await this.createStopLimitOrder(item, qty, stock);
+            // await this.createOcoSellOrder(item, qty, stock);
         }
 
         console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
@@ -199,7 +205,7 @@ class TradingBot {
         return true;
     }
 
-    async sellStock(item, stock, isBacktest) {
+    async setStopLimit(item, stock, isBacktest) {
         const positions = await this.getPositions(item.symbol, isBacktest);
         const positionWithTicker = positions && positions.length > 0 ? positions[0] : null;
 
@@ -219,22 +225,22 @@ class TradingBot {
             const profit = qty * item.close - buyPrice * qty;
             console.log(`${item.symbol} profit is: ${profit}`);
 
-            if (profit > 0.5) {
+            if (profit > 0.01) {
                 if (!isBacktest) {
                     const openOrders = await this.getOpenOrders(item.symbol);
                     if (openOrders.length > 0) {
                         await this.cancelOpenOrders(item.symbol);
                     }
+
+                    await this.createStopLimitOrder(item, qty, stock);
                 }
 
-                if (!isBacktest) await this.createSellOrder(item, qty, stock);
-
-                console.log(chalk.green(`selling ${item.symbol} in quantity: ${qty}`));
-                this.totalProfit += profit;
-                this.numberOfTrades += 1;
-                this.amountOwned = this.amountOwned - qty;
-                this.amountOwned = this.amountOwned < 0 ? 0 : this.amountOwned;
-                this.balance += qty * item.close;
+                console.log(chalk.green(`Setting stop limit for ${item.symbol} in quantity: ${qty}`));
+                // this.totalProfit += profit;
+                // this.numberOfTrades += 1;
+                // this.amountOwned = this.amountOwned - qty;
+                // this.amountOwned = this.amountOwned < 0 ? 0 : this.amountOwned;
+                // this.balance += qty * item.close;
                 await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
                 return true;
             }
@@ -331,11 +337,18 @@ class TradingBot {
     async createStopLimitOrder(item, quantity, config) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
+
+        const atrStopLoss = item.close - item.atr * config.stopLossMultiplier;
+        const atrStopLimit = item.close - item.atr * config.stopLimitMultiplier;
+
+        const stopPrice = parseFloat(atrStopLoss);
+        const stopLimitPrice = parseFloat(atrStopLimit);
+
         return await postRequest(
             "order",
-            `symbol=${item.symbol}&side=SELL&type=STOP_LOSS_LIMIT&timeInForce=gtc&quantity=${quantity.toFixed(config.precision)}&price=${(
-                item.close * config.stopLimitMultiplier
-            ).toFixed(config.decimals)}&stopPrice=${(item.close * config.stopLossMultiplier).toFixed(
+            `symbol=${item.symbol}&side=SELL&type=STOP_LOSS_LIMIT&timeInForce=gtc&quantity=${quantity.toFixed(
+                config.precision
+            )}&price=${stopLimitPrice.toFixed(config.decimals)}&stopPrice=${stopPrice.toFixed(
                 config.decimals
             )}&timestamp=${timeInMilliseconds}`,
             isSigned
@@ -393,18 +406,19 @@ class TradingBot {
     }
 
     async getLatestTickerData(symbol, writer) {
-        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=1`);
+        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=100`);
 
         const formattedData = data.map((x) => ({
             close: x[4],
             high: x[2],
             low: x[3],
-            date: moment().format("YYYY-MM-DD HH:mm:ss"),
-        }))[0];
+            date: moment(x[6]).format("YYYY-MM-DD HH:mm"),
+            // date: moment().format("YYYY-MM-DD HH:mm:ss"),
+        }));
 
-        if (writer) {
-            await writer.writeRecords([formattedData]);
-        }
+        // if (writer) {
+        //     await writer.writeRecords([formattedData]);
+        // }
 
         return formattedData;
     }
@@ -467,10 +481,10 @@ class TradingBot {
             ],
         });
 
-        for (let i = 0; i < 100; i++) {
-            await this.getLatestTickerData(symbol, csvWriter);
-            await timeout(1000);
-        }
+        // for (let i = 0; i < 100; i++) {
+        //     await this.getLatestTickerData(symbol, csvWriter);
+        //     await timeout(1000);
+        // }
 
         return new Promise((resolve, reject) => {
             try {

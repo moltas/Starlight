@@ -132,20 +132,10 @@ class TradingBot {
         const mostRecentData = tradeData[tradeData.length - 1];
         if (!mostRecentData) return;
 
-        // const avgPrice = await this.getCurrentAvgPrice(stock.symbol, tradeData, isBacktest);
-        // let priceAboveAvgPrice = avgPrice < mostRecentData.close;
-        // let priceBelowAvgPrice = avgPrice > mostRecentData.close;
-
         const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached;
         // const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
 
         const openOrders = await this.getOpenOrders(stock.symbol);
-
-        console.log(
-            `openOrder length: ${openOrders.length}, order price: ${openOrders.length > 0 ? openOrders[0].stopPrice : 0}, current price: ${
-                mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier
-            }`
-        );
 
         if (buySignal && openOrders.length === 0) {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));

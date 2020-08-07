@@ -122,9 +122,7 @@ class TradingBot {
         const last3Bars = tradeData.slice(tradeData.length - 3, tradeData.length);
 
         const hasRsiBeenBelow30Last10Bars = last10Bars.some((bar) => bar.rsi <= stock.rsiLow);
-        const hasRsiBeenAbove70Last10Bars = last10Bars.some((bar) => bar.rsi >= stock.rsiHigh);
 
-        const hasHistogramBeenHigh = last10Bars.some((bar) => bar.histogram >= stock.histogramHigh);
         const hasHistogramBeenLow = last10Bars.some((bar) => bar.histogram <= -stock.histogramHigh);
         const isHistogramMidpointReached =
             (last3Bars[2].histogram > 0 && last3Bars[1].histogram < 0) || (last3Bars[2].histogram < 0 && last3Bars[1].histogram > 0);
@@ -143,12 +141,10 @@ class TradingBot {
                 await this.buyStock(mostRecentData, stock, isBacktest);
                 // this.stockWaitlist.push(stock.symbol);
             }
-        }
-        // } else if (sellSignal) {
-        //     console.log(chalk.cyan(`Sell signal reached - ${stock.symbol}`));
-        //     await this.sellStock(mostRecentData, stock, isBacktest);
-        //     this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
-        else if (openOrders.length > 0 && openOrders[0].stopPrice < mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier) {
+        } else if (
+            openOrders.length > 0 &&
+            openOrders[0].stopPrice < mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier
+        ) {
             await this.setStopLimit(mostRecentData, stock, isBacktest);
         }
     }
@@ -159,7 +155,7 @@ class TradingBot {
         const balance = await this.getAccountBalance(isBacktest);
         let qty = stock.minQty;
 
-        while (qty * item.close * 0.9 < stock.minNotional * 2) {
+        while (qty * item.close * 0.9 < stock.minNotional * this.getPriceModifier(stock, item.atr)) {
             qty += stock.stepSize;
         }
 
@@ -511,6 +507,10 @@ class TradingBot {
             await this.getLatestTickerData(symbol, csvWriter);
             await timeout(1000);
         }
+    }
+
+    getPriceModifier(config, atr) {
+        return config.atrMod * atr;
     }
 }
 

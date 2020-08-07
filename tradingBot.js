@@ -181,7 +181,7 @@ class TradingBot {
             this.balance -= item.close * qty;
         } else {
             await this.createBuyOrder(item, qty, stock);
-            await this.createStopLimitOrder(item, qty, stock);
+            await this.createOcoSellOrder(item, qty, stock);
         }
 
         console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
@@ -221,7 +221,7 @@ class TradingBot {
                     await this.cancelOpenOrders(item.symbol);
                 }
 
-                await this.createStopLimitOrder(item, qty, stock);
+                await this.createOcoSellOrder(item, qty, stock);
             }
 
             console.log(chalk.green(`Setting stop limit for ${item.symbol} in quantity: ${qty}`));

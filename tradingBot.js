@@ -150,8 +150,6 @@ class TradingBot {
     }
 
     async buyStock(item, stock, isBacktest) {
-        this.stockWaitlist.push(stock.symbol);
-
         const balance = await this.getAccountBalance(isBacktest);
         let qty = stock.minQty;
 
@@ -191,7 +189,6 @@ class TradingBot {
 
         this.numberOfTrades += 1;
 
-        this.stockWaitlist = this.stockWaitlist.filter((x) => x != stock.symbol);
         return true;
     }
 

@@ -29,7 +29,7 @@ module.exports = [
         stopLossMultiplier: 2,
         stopLimitMultiplier: 2.2,
         takeProfitMultiplier: 3.5,
-        atrMod: 40,
+        atrMod: 30,
     },
     {
         symbol: "LTCUSDT",

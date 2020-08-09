@@ -124,8 +124,6 @@ class TradingBot {
 
         const openOrders = await client.getOpenOrders(stock.symbol);
 
-        console.log(this.stockWaitlist);
-
         if (buySignal && openOrders.length === 0) {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {

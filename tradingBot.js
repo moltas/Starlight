@@ -132,7 +132,7 @@ class TradingBot {
         } else if (
             openOrders.length > 0 &&
             openOrders.filter((x) => x.type === "STOP_LOSS_LIMIT")[0].stopPrice <
-                mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier
+                mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier * 0.9
         ) {
             await this.setStopLimit(mostRecentData, stock);
         }

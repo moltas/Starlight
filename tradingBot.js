@@ -127,8 +127,8 @@ class TradingBot {
         if (buySignal && openOrders.length === 0) {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {
+                this.stockWaitlist.push(stock.symbol);
                 await this.buyStock(mostRecentData, stock, isBacktest);
-                // this.stockWaitlist.push(stock.symbol);
             }
         } else if (
             openOrders.length > 0 &&
@@ -169,6 +169,8 @@ class TradingBot {
         console.log("Remaining balance", balance);
 
         await writeToFile(stock, { side: "buy", price: item.close, qty: qty, amount: qty * item.close, date: item.date });
+
+        this.stockWaitlist = this.stockWaitlist.filter((x) => x !== stock.symbol);
 
         return true;
     }

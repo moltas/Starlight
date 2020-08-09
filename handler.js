@@ -14,11 +14,11 @@ let intervalObj = {};
 
 app.get("/start", async (req, res) => {
     const promiseArray = [];
-    let results = {
-        BTCUSDT: null,
-        ETHUSDT: null,
-        LTCUSDT: null,
-    };
+    // let results = {
+    //     BTCUSDT: null,
+    //     ETHUSDT: null,
+    //     LTCUSDT: null,
+    // };
 
     config.forEach((item) => {
         const promise = new Promise((resolve, reject) => {
@@ -28,10 +28,11 @@ app.get("/start", async (req, res) => {
                 .then(() => {
                     resolve();
                     intervalObj[item.symbol] = setIntervalAsync(async () => {
-                        results[item.symbol] = await strategy.run(item);
-                    }, 10000);
+                        await strategy.run(item);
+                    }, 1000);
                 })
                 .catch((err) => {
+                    console.log(err);
                     clearIntervalAsync(intervalObj[item.symbol]);
                     reject(err);
                 });

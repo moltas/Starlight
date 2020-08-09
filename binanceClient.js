@@ -133,7 +133,7 @@ class BinanceClient {
     }
 
     async getLatestTickerData(symbol, writer) {
-        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=100`);
+        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=1`);
 
         const formattedData = data.map((x) => ({
             close: x[4],
@@ -141,11 +141,11 @@ class BinanceClient {
             low: x[3],
             date: moment(x[6]).format("YYYY-MM-DD HH:mm"),
             // date: moment().format("YYYY-MM-DD HH:mm:ss"),
-        }));
+        }))[0];
 
-        // if (writer) {
-        //     await writer.writeRecords([formattedData]);
-        // }
+        if (writer) {
+            await writer.writeRecords([formattedData]);
+        }
 
         return formattedData;
     }

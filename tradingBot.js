@@ -39,8 +39,8 @@ class TradingBot {
             if (backtestData) {
                 this.tradingData = backtestData;
             } else {
-                const tradingData = await client.getLatestTickerData(config.symbol);
-                this.tradingData = tradingData;
+                const data = await client.getLatestTickerData(config.symbol);
+                this.tradingData.push(data);
             }
 
             await this.handleTrade(config, this.tradingData, !!backtestData);
@@ -223,10 +223,10 @@ class TradingBot {
             ],
         });
 
-        // for (let i = 0; i < 100; i++) {
-        //     await this.getLatestTickerData(symbol, csvWriter);
-        //     await timeout(1000);
-        // }
+        for (let i = 0; i < 100; i++) {
+            await client.getLatestTickerData(symbol, csvWriter);
+            await timeout(1000);
+        }
 
         return new Promise((resolve, reject) => {
             try {

@@ -176,7 +176,7 @@ class TradingBot {
         return true;
     }
 
-    async setStopLimit(item, stock, isBacktest) {
+    async setStopLimit(item, stock) {
         const positions = await client.getPositions(item.symbol);
         const positionWithTicker = positions && positions.length > 0 ? positions[0] : null;
 
@@ -196,14 +196,12 @@ class TradingBot {
             // const profit = qty * item.close - buyPrice * qty;
             // console.log(`${item.symbol} profit is: ${profit}`);
 
-            if (!isBacktest) {
-                const openOrders = await client.getOpenOrders(item.symbol);
-                if (openOrders.length > 0) {
-                    await client.cancelOpenOrders(item.symbol);
-                }
-
-                await client.createOcoSellOrder(item, qty, stock);
+            const openOrders = await client.getOpenOrders(item.symbol);
+            if (openOrders.length > 0) {
+                await client.cancelOpenOrders(item.symbol);
             }
+
+            await client.createOcoSellOrder(item, qty, stock);
 
             console.log(chalk.green(`Setting stop limit for ${item.symbol} in quantity: ${qty}`));
 

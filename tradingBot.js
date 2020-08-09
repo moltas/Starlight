@@ -127,7 +127,6 @@ class TradingBot {
         if (buySignal && openOrders.length === 0) {
             console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {
-                this.stockWaitlist.push(stock.symbol);
                 await this.buyStock(mostRecentData, stock, isBacktest);
             }
         } else if (
@@ -139,6 +138,8 @@ class TradingBot {
     }
 
     async buyStock(item, stock) {
+        this.stockWaitlist.push(stock.symbol);
+
         const balance = await client.getAccountBalance();
         let qty = stock.minQty;
 
@@ -152,6 +153,7 @@ class TradingBot {
                     `Buy validation failed. MinNotional not reached. Amount is ${qty * item.close} and minNotional is ${stock.minNotional}`
                 )
             );
+            this.stockWaitlist = this.stockWaitlist.filter((x) => x !== stock.symbol);
             return false;
         }
 
@@ -159,6 +161,7 @@ class TradingBot {
             console.log(
                 chalk.red(`Buy validation failed. Not enough balance (${balance}) to buy - ${stock.symbol} at price ${qty * item.close}`)
             );
+            this.stockWaitlist = this.stockWaitlist.filter((x) => x !== stock.symbol);
             return false;
         }
 

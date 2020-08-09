@@ -88,7 +88,7 @@ class TradingBot {
             histogram = result[2];
         });
 
-        await tulind.indicators.atr.indicator([highPrices, lowPrices, closePrices], [20], (err, result) => {
+        await tulind.indicators.atr.indicator([closePrices, closePrices, closePrices], [20], (err, result) => {
             const diff = lengthDiff - 20;
             atr = result[0];
             atr.splice(0, diff);
@@ -120,7 +120,6 @@ class TradingBot {
         if (!mostRecentData) return;
 
         const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached;
-        // const sellSignal = hasHistogramBeenHigh && hasRsiBeenAbove70Last10Bars && isHistogramMidpointReached && priceAboveAvgPrice;
 
         const openOrders = await client.getOpenOrders(stock.symbol);
 

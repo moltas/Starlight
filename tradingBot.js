@@ -4,17 +4,16 @@ const tulind = require("tulind");
 const fs = require("fs");
 const createCsvWriter = require("csv-writer").createObjectCsvWriter;
 const csv = require("csv-parser");
-var path = require("path");
+const path = require("path");
+const Ichimoku = require("./ichimoku");
 
 const { timeout } = require("./utils");
-const BinanceClient = require("./binanceClient.js");
 
 const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}.json`);
 
-const client = new BinanceClient();
-
 class TradingBot {
-    constructor() {
+    constructor(client) {
+        this.client = client;
         this.stockWaitlist = [];
         this.configInitialized = false;
         this.tradingData = [];
@@ -31,7 +30,7 @@ class TradingBot {
 
     async run(config, backtestData) {
         if (!this.configInitialized && !backtestData) {
-            await client.getExchangeData(config);
+            await this.client.getExchangeData(config);
             this.configInitialized = true;
         }
 
@@ -39,8 +38,8 @@ class TradingBot {
             if (backtestData) {
                 this.tradingData = backtestData;
             } else {
-                const data = await client.getLatestTickerData(config.symbol);
-                this.tradingData.push(data);
+                const data = await this.client.getLatestTickerData(config.symbol);
+                this.tradingData = data;
             }
 
             await this.handleTrade(config, this.tradingData, !!backtestData);
@@ -50,31 +49,35 @@ class TradingBot {
             return Promise.reject(errMsg);
         }
 
-        return null;
+        return this.getResults();
     }
 
-    async handleTrade(stock, histData, isBacktest) {
-        const shortenedHistData = histData.slice(histData.length - 100, histData.length);
+    async handleTrade(stock, histData) {
         const closePrices = [];
         const highPrices = [];
         const lowPrices = [];
         const dates = [];
+        const lengthDiff = 53;
 
-        shortenedHistData.forEach((bar) => {
+        histData.forEach((bar) => {
             closePrices.push(bar.close);
             highPrices.push(bar.high);
             lowPrices.push(bar.low);
-            dates.push(bar.date);
+            dates.push(bar.time);
         });
 
-        let macdLine = [];
-        let signalLine = [];
-        let histogram = [];
+        const ichimoku = new Ichimoku(highPrices, lowPrices, closePrices);
+        const { data, startIndex } = ichimoku.getResults();
+
+        const futureCloud = data.slice(startIndex + 1, data.length).map((x) => ({ ssa: x.kumu.ssa, ssb: x.kumu.ssb }));
+
+        const isBullishCloudComing = !futureCloud.some((x) => x.ssa < x.ssb);
+        const isBearishCloudComing = futureCloud.some((x) => x.ssa < x.ssb);
+
+        const inchimokuData = data.slice(0, startIndex);
+
         let rsi = [];
         let atr = [];
-
-        const lengthDiff = 25;
-        dates.splice(0, lengthDiff);
 
         await tulind.indicators.rsi.indicator([closePrices], [14], (err, result) => {
             const diff = lengthDiff - 14;
@@ -82,64 +85,68 @@ class TradingBot {
             rsi.splice(0, diff);
         });
 
-        await tulind.indicators.macd.indicator([closePrices], [12, 26, 9], (err, result) => {
-            macdLine = result[0];
-            signalLine = result[1];
-            histogram = result[2];
-        });
-
-        await tulind.indicators.atr.indicator([closePrices, closePrices, closePrices], [20], (err, result) => {
-            const diff = lengthDiff - 20;
+        await tulind.indicators.atr.indicator([highPrices, lowPrices, closePrices], [20], (err, result) => {
+            const diff = lengthDiff - 19;
             atr = result[0];
             atr.splice(0, diff);
         });
 
         closePrices.splice(0, lengthDiff);
+        highPrices.splice(0, lengthDiff);
+        lowPrices.splice(0, lengthDiff);
+        dates.splice(0, lengthDiff);
+        histData.splice(0, lengthDiff);
 
-        const tradeData = macdLine.map((x, i) => ({
+        const tradeData = histData.map((x, i) => ({
             symbol: stock.symbol,
-            macd: macdLine[i],
-            signal: signalLine[i],
-            histogram: histogram[i],
             date: dates[i],
             close: closePrices[i],
+            high: highPrices[i],
+            low: lowPrices[i],
             rsi: rsi[i],
             atr: atr[i],
+            ichimoku: inchimokuData[i],
         }));
 
-        const last10Bars = tradeData.slice(tradeData.length - 15, tradeData.length);
+        console.log("ichimoku", inchimokuData.length);
+        console.log("tradeData", tradeData.length);
+
+        const last10Bars = tradeData.slice(tradeData.length - 10, tradeData.length);
         const last3Bars = tradeData.slice(tradeData.length - 3, tradeData.length);
 
         const hasRsiBeenBelow30Last10Bars = last10Bars.some((bar) => bar.rsi <= stock.rsiLow);
-
-        const hasHistogramBeenLow = last10Bars.some((bar) => bar.histogram <= -stock.histogramHigh);
-        const isHistogramMidpointReached =
-            (last3Bars[2].histogram > 0 && last3Bars[1].histogram < 0) || (last3Bars[2].histogram < 0 && last3Bars[1].histogram > 0);
+        const hasRsiBeenAbove70Last10Bars = last10Bars.some((bar) => bar.rsi >= stock.rsiHigh);
 
         const mostRecentData = tradeData[tradeData.length - 1];
         if (!mostRecentData) return;
 
-        const buySignal = hasHistogramBeenLow && hasRsiBeenBelow30Last10Bars && isHistogramMidpointReached;
+        console.log(mostRecentData);
 
-        const openOrders = await client.getOpenOrders(stock.symbol);
+        await writeToFile(stock, mostRecentData);
+
+        const { tenkan, kijun, kumu } = mostRecentData.ichimoku;
+
+        const kumuCloudBeneathPrice = kumu.ssa < mostRecentData.close && kumu.ssb < mostRecentData.close;
+        const tenkanCrossedKijun = tenkan > kijun && last3Bars[0].ichimoku.tenkan < last3Bars[0].ichimoku.kijun;
+        const kijunCrossedTenkan = kijun > tenkan && last3Bars[0].ichimoku.kijun < last3Bars[0].ichimoku.tenkan;
+
+        const buySignal = kumuCloudBeneathPrice && tenkanCrossedKijun && isBullishCloudComing;
+        const sellSignal = kijunCrossedTenkan;
+
+        const openOrders = await this.client.getOpenOrders(stock.symbol);
 
         if (buySignal && openOrders.length === 0) {
-            console.log(chalk.cyan(`Buy signal reached - ${stock.symbol}`));
             if (!this.stockWaitlist.includes(stock.symbol)) {
                 this.stockWaitlist.push(stock.symbol);
-                await this.buyStock(mostRecentData, stock, isBacktest);
+                await this.buy(mostRecentData, stock);
             }
-        } else if (
-            openOrders.length > 0 &&
-            openOrders.filter((x) => x.type === "STOP_LOSS_LIMIT")[0].stopPrice <
-                mostRecentData.close - mostRecentData.atr * stock.stopLossMultiplier * 0.9
-        ) {
-            await this.setStopLimit(mostRecentData, stock);
+        } else if (sellSignal) {
+            await this.sell(mostRecentData, stock);
         }
     }
 
-    async buyStock(item, stock) {
-        const balance = await client.getAccountBalance();
+    async buy(item, stock) {
+        const balance = await this.client.getAccountBalance();
         let qty = stock.minQty;
 
         while (qty * item.close * 0.9 < stock.minNotional * this.getPriceModifier(stock, item.atr)) {
@@ -164,21 +171,22 @@ class TradingBot {
             return false;
         }
 
-        await client.createBuyOrder(item, qty, stock);
-        await client.createOcoSellOrder(item, qty, stock);
+        await this.client.createBuyOrder(item, qty, stock);
+        // await this.client.createOcoSellOrder(item, qty, stock);
 
-        console.log(chalk.green(`buying ${item.symbol} in quantity: ${qty}`));
+        console.log(chalk.green(`Buying ${item.symbol} for price: ${item.close * qty}$. Timestamp: ${item.date}`));
         console.log("Remaining balance", balance);
+        console.log(item);
 
-        await writeToFile(stock, { side: "buy", price: item.close, qty: qty, amount: qty * item.close, date: item.date });
+        // await writeToFile(stock, { side: "buy", price: item.close, qty: qty, amount: qty * item.close, date: item.date });
 
-        this.stockWaitlist = this.stockWaitlist.filter((x) => x !== stock.symbol);
+        // this.stockWaitlist = this.stockWaitlist.filter((x) => x !== stock.symbol);
 
         return true;
     }
 
-    async setStopLimit(item, stock) {
-        const positions = await client.getPositions(item.symbol);
+    async sell(item, stock) {
+        const positions = await this.client.getPositions(item.symbol);
         const positionWithTicker = positions && positions.length > 0 ? positions[0] : null;
 
         if (positionWithTicker && positionWithTicker.free > 0 && positionWithTicker.free * item.close > stock.minNotional) {
@@ -197,76 +205,31 @@ class TradingBot {
             // const profit = qty * item.close - buyPrice * qty;
             // console.log(`${item.symbol} profit is: ${profit}`);
 
-            const openOrders = await client.getOpenOrders(item.symbol);
+            const openOrders = await this.client.getOpenOrders(item.symbol);
             if (openOrders.length > 0) {
-                await client.cancelOpenOrders(item.symbol);
+                await this.client.cancelOpenOrders(item.symbol);
             }
 
-            await client.createOcoSellOrder(item, qty, stock);
+            // await this.client.createOcoSellOrder(item, qty, stock);
+            await this.client.createSellOrder(item, qty, stock);
 
-            console.log(chalk.green(`Setting stop limit for ${item.symbol} in quantity: ${qty}`));
+            console.log(chalk.yellow(`Selling ${item.symbol} for price: ${item.close * qty}$. Timestamp: ${item.date}`));
 
-            await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
+            // await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
+
+            this.stockWaitlist = this.stockWaitlist.filter((x) => x !== stock.symbol);
             return true;
         }
 
         return false;
     }
 
-    async collectTradeData(symbol) {
-        console.log(chalk.yellow("Collecting data..."));
-        const csvWriter = createCsvWriter({
-            path: path.resolve(`output/${symbol}.csv`),
-            header: [
-                { id: "close", title: "close" },
-                { id: "high", title: "high" },
-                { id: "low", title: "low" },
-                { id: "date", title: "date" },
-            ],
-        });
-
-        for (let i = 0; i < 100; i++) {
-            await client.getLatestTickerData(symbol, csvWriter);
-            await timeout(1000);
-        }
-
-        return new Promise((resolve, reject) => {
-            try {
-                fs.createReadStream(path.resolve(`output/${symbol}.csv`))
-                    .pipe(csv())
-                    .on("data", (row) => {
-                        this.tradingData.push(row);
-                    })
-                    .on("end", () => {
-                        console.log(chalk.green("Data collected!"));
-                        resolve();
-                    });
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
-    async collectBackTestingData(symbol, times) {
-        console.log(chalk.yellow("Collecting back test data..."));
-        const csvWriter = createCsvWriter({
-            path: path.resolve(`output/${symbol}_test.csv`),
-            header: [
-                { id: "close", title: "close" },
-                { id: "high", title: "high" },
-                { id: "low", title: "low" },
-                { id: "date", title: "date" },
-            ],
-        });
-
-        for (let i = 0; i < times; i++) {
-            await client.getLatestTickerData(symbol, csvWriter);
-            await timeout(1000);
-        }
-    }
-
     getPriceModifier(config, atr) {
         return config.atrMod * atr;
+    }
+
+    getResults() {
+        return this.client.getResults();
     }
 }
 

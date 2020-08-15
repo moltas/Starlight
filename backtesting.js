@@ -9,10 +9,14 @@ const { asyncForEach } = require("./utils");
 const config = require("./config");
 const TradingBot = require("./tradingBot");
 
+const BinanceClientMocked = require("./binanceClient_mocked");
+
 const app = express();
 const port = 5050;
 
 app.use(bodyParser.json({ strict: false }));
+
+const client = new BinanceClientMocked();
 
 class BackTesting {
     constructor() {
@@ -20,38 +24,34 @@ class BackTesting {
     }
 
     async run(symbol) {
-        const tradingBot = new TradingBot();
+        const tradingBot = new TradingBot(client);
 
         await this.initializedData(symbol);
 
-        let results = {
-            BTCUSDT: null,
-            ETHUSDT: null,
-            LTCUSDT: null,
-        };
+        let results = null;
+        // let startIndex = 0;
+        // let tradeData = this.tradingData.slice(100, this.tradingData.length - 1);
 
-        let index = 101;
+        await asyncForEach(this.tradingData, async (x, i) => {
+            const slice = this.tradingData.slice(i, i + 200);
 
-        let tradeData = this.tradingData.slice(100, this.tradingData.length - 1);
-
-        await asyncForEach(tradeData, async () => {
-            results[symbol] = await tradingBot.run(config.filter((x) => x.symbol === symbol)[0], this.tradingData.slice(0, index));
-            index++;
+            if (slice.length === 200) {
+                results = await tradingBot.run(config.filter((x) => x.symbol === symbol)[0], slice);
+            }
         });
 
-        console.log(results);
+        console.log("results: ", results);
     }
 
     async initializedData(symbol) {
         return new Promise((resolve, reject) => {
             try {
-                fs.createReadStream(`output/${symbol}_test.csv`)
+                fs.createReadStream(`data/BTCUSDT_1h_2.csv`)
                     .pipe(csv())
                     .on("data", (row) => {
                         this.tradingData.push(row);
                     })
                     .on("end", () => {
-                        console.log(chalk.green("Data initialized!"));
                         resolve();
                     });
             } catch (error) {

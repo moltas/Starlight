@@ -15,39 +15,42 @@ class Ichimoku {
         const kumu = this.getKumuCloud(tenkan, kijun);
 
         return {
-            startIndex: tenkan.length - 1,
+            startIndex: tenkan.length,
             data: kumu.map((x, i) => ({
                 tenkan: tenkan[i] ? tenkan[i].toFixed(3) : tenkan[i],
-                kijin: kijun[i] ? kijun[i].toFixed(3) : kijun[i],
+                kijun: kijun[i] ? kijun[i].toFixed(3) : kijun[i],
                 kumu: x,
             })),
         };
     }
 
     getAverages(period) {
-        const arr = [];
+        let highs = [...this.highs];
+        let lows = [...this.lows];
 
-        let periodIndex = period;
+        let arr = [];
 
-        for (let i in this.data.slice(52, this.data.length)) {
-            let highestHigh = this.highs.slice(i, periodIndex).reduce((a, b) => Math.max(a, b));
-            let lowestLow = this.lows.slice(i, periodIndex).reduce((a, b) => Math.min(a, b));
+        this.highs.slice(53, this.highs.length).forEach(() => {
+            let highestHigh = highs.slice(-period).reduce((a, b) => Math.max(a, b));
+            let lowestLow = lows.slice(-period).reduce((a, b) => Math.min(a, b));
             let result = (highestHigh + lowestLow) / 2;
 
             arr.push(result);
 
-            periodIndex++;
-        }
+            highs.pop();
+            lows.pop();
+        });
 
-        return arr;
+        return arr.reverse();
     }
 
     getKumuCloud(tenkan, kijun) {
         const ssa = tenkan.map((x, i) => (tenkan[i] + kijun[i]) / 2);
+
         const ssb = this.getAverages(52);
 
-        const filledArray = Array.from({ length: 26 }, () => ({ ssa: 0, ssb: 0, trend: "" }));
-        const combined = ssa.map((x, i) => ({ ssa: x.toFixed(3), ssb: ssb[i].toFixed(3), trend: x > ssb[i] ? "bullish" : "bearish" }));
+        const filledArray = Array.from({ length: 25 }, () => ({ ssa: 0, ssb: 0 }));
+        const combined = ssa.map((x, i) => ({ ssa: x, ssb: ssb[i] }));
 
         const result = filledArray.concat(combined);
 

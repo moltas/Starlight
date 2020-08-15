@@ -16,7 +16,7 @@ module.exports = [
         stopLimitMultiplier: 50.2,
         takeProfitMultiplier: 60,
         // atrMod: 0.05,
-        atrMod: 10,
+        atrMod: 0.1,
     },
     {
         symbol: "ETHUSDT",

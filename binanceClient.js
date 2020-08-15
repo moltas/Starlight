@@ -118,34 +118,15 @@ class BinanceClient {
         );
     }
 
-    async getHistorialData(symbol, useSeconds) {
-        if (useSeconds) {
-            const data = await getRequest("aggTrades", `symbol=${symbol}&limit=300`);
-            const formattedData = data.map((bar) => ({ close: bar.p, date: moment(bar.T).format("YYYY-MM-DD HH:mm:ss") }));
-            const dataWithoutDuplicates = mergeObjectsInUnique(formattedData, "date");
-            return dataWithoutDuplicates;
-        } else {
-            const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=100`);
-            const formattedData = data.map((bar) => ({ close: bar[4], date: moment(bar[6]).format("YYYY-MM-DD HH:mm") }));
-
-            return formattedData;
-        }
-    }
-
-    async getLatestTickerData(symbol, writer) {
-        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=1`);
+    async getLatestTickerData(symbol) {
+        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=200`);
 
         const formattedData = data.map((x) => ({
             close: x[4],
             high: x[2],
             low: x[3],
-            date: moment(x[6]).format("YYYY-MM-DD HH:mm"),
-            // date: moment().format("YYYY-MM-DD HH:mm:ss"),
-        }))[0];
-
-        if (writer) {
-            await writer.writeRecords([formattedData]);
-        }
+            time: x[6],
+        }));
 
         return formattedData;
     }

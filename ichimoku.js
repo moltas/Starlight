@@ -12,14 +12,17 @@ class Ichimoku {
     getResults() {
         const tenkan = this.getAverages(9);
         const kijun = this.getAverages(26);
-        const kumu = this.getKumuCloud(tenkan, kijun);
+        const kumo = this.getKumoCloud(tenkan, kijun);
+        const chikou = this.getChikouSpan();
 
         return {
             startIndex: tenkan.length,
-            data: kumu.map((x, i) => ({
+            chikouIndex: 26,
+            data: kumo.map((x, i) => ({
                 tenkan: tenkan[i] ? tenkan[i].toFixed(3) : tenkan[i],
                 kijun: kijun[i] ? kijun[i].toFixed(3) : kijun[i],
-                kumu: x,
+                kumo: x,
+                chikouSpan: chikou[i],
             })),
         };
     }
@@ -44,15 +47,23 @@ class Ichimoku {
         return arr.reverse();
     }
 
-    getKumuCloud(tenkan, kijun) {
+    getKumoCloud(tenkan, kijun) {
         const ssa = tenkan.map((x, i) => (tenkan[i] + kijun[i]) / 2);
 
         const ssb = this.getAverages(52);
 
         const filledArray = Array.from({ length: 25 }, () => ({ ssa: 0, ssb: 0 }));
-        const combined = ssa.map((x, i) => ({ ssa: x, ssb: ssb[i] }));
+        const combined = ssa.map((x, i) => ({ ssa: x ? x.toFixed(3) : x, ssb: ssb[i] ? ssb[i].toFixed(3) : ssb[i] }));
 
         const result = filledArray.concat(combined);
+
+        return result;
+    }
+
+    getChikouSpan() {
+        const arr = this.closes;
+        const filledArray = Array(25).fill(undefined);
+        const result = arr.slice(78).concat(filledArray);
 
         return result;
     }

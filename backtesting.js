@@ -29,8 +29,6 @@ class BackTesting {
         await this.initializedData(symbol);
 
         let results = null;
-        // let startIndex = 0;
-        // let tradeData = this.tradingData.slice(100, this.tradingData.length - 1);
 
         await asyncForEach(this.tradingData, async (x, i) => {
             const slice = this.tradingData.slice(i, i + 200);
@@ -46,7 +44,7 @@ class BackTesting {
     async initializedData(symbol) {
         return new Promise((resolve, reject) => {
             try {
-                fs.createReadStream(`data/BTCUSDT_1h_2.csv`)
+                fs.createReadStream(`data/BTCUSDT_15m.csv`)
                     .pipe(csv())
                     .on("data", (row) => {
                         this.tradingData.push(row);
@@ -61,38 +59,5 @@ class BackTesting {
     }
 }
 
-// const testing = new BackTesting();
-// testing.run("BTCUSDT");
-// testing.run("ETHUSDT");
-// testing.run("LTCUSDT");
-
-app.get("/", async (req, res) => {});
-
-app.get("/collect", async (req, res) => {
-    // const promiseArray = [];
-    // config.forEach((item) => {
-    //     const promise = new Promise((resolve, reject) => {
-    //         const strategy = new TradingBot();
-    //         strategy
-    //             .collectBackTestingData(item.symbol, 43200)
-    //             .then(() => {
-    //                 console.log(chalk.green(`Fetching back testing data completed!`));
-    //                 resolve();
-    //             })
-    //             .catch((err) => {
-    //                 reject(err);
-    //             });
-    //     });
-    //     promiseArray.push(promise);
-    // });
-    // Promise.all(promiseArray);
-    // res.send("Collecting data!");
-});
-
 const testing = new BackTesting();
 testing.run("BTCUSDT");
-// testing.run("ETHUSDT");
-// testing.run("LTCUSDT");
-// res.send("Started");
-
-// app.listen(port, () => console.log(`Running at port:${port}`));

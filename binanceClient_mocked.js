@@ -12,12 +12,16 @@ class BinanceClientMocked {
         };
         this.numberOfTrades = 0;
         this.startingCapital = this.balance;
+
+        this.lastPosition = null;
+        this.numberOfProfitableTrades = 0;
     }
 
     getResults() {
         return {
             balance: this.balance,
             numberOfTrades: this.numberOfTrades,
+            numberOfProfitableTrades: this.numberOfProfitableTrades,
             profitPercentage: (this.balance / this.startingCapital).toFixed(3),
         };
     }
@@ -43,13 +47,16 @@ class BinanceClientMocked {
     async createBuyOrder(item, quantity, config) {
         this.positions[config.symbol.split("USDT")[0]].free += quantity;
         this.balance -= item.close * quantity;
-        this.numberOfTrades++;
+        this.lastPosition = item.close * quantity;
     }
 
     async createSellOrder(item, quantity, config) {
         this.positions[config.symbol.split("USDT")[0]].free -= quantity;
         this.balance += item.close * quantity;
         this.numberOfTrades++;
+        if (item.close * quantity > this.lastPosition) {
+            this.numberOfProfitableTrades++;
+        }
     }
 
     async createStopLimitOrder(item, quantity, config) {

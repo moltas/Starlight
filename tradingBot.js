@@ -22,6 +22,7 @@ class TradingBot {
         this.hasStockBeenSold = true;
         this.configInitialized = false;
         this.tradingData = [];
+
         this.buySignal = "";
         this.sellSignal = false;
 
@@ -36,6 +37,8 @@ class TradingBot {
     }
 
     async run(config, backtestData) {
+        console.log(chalk.yellow("Running..."));
+
         if (!this.configInitialized && !backtestData) {
             await this.client.getExchangeData(config);
             this.configInitialized = true;
@@ -45,11 +48,19 @@ class TradingBot {
             if (backtestData) {
                 this.tradingData = backtestData;
             } else {
-                const data = await this.client.getLatestTickerData(config.symbol);
+                const data = await this.client.getLatestTickerData(config.symbol, "15m");
                 this.tradingData = data;
             }
 
-            await this.handleTrade(config, this.tradingData, !!backtestData);
+            // fifteen and five data is out of sync. Need to read five data and select based on the date of fifteen.
+
+            const { isBullish, timestamp } = await this.handleTrade(config, this.tradingData, false);
+
+            if (isBullish) {
+                // const result = await getTradeDataFromFile(config, timestamp);
+                const tradeData = await this.client.getLatestTickerData(config.symbol, "5m");
+                await this.handleTrade(config, tradeData);
+            }
         } catch (error) {
             const errMsg = error.message;
             console.log(errMsg);
@@ -59,7 +70,7 @@ class TradingBot {
         return this.getResults();
     }
 
-    async handleTrade(stock, histData) {
+    async handleTrade(stock, histData, doTrade = true) {
         const closePrices = [];
         const highPrices = [];
         const lowPrices = [];
@@ -114,9 +125,7 @@ class TradingBot {
         const hasRsiBeenBelow30Last10Bars = last10Bars.some((bar) => bar.rsi <= stock.rsiLow);
         const hasRsiBeenAbove70Last10Bars = last10Bars.some((bar) => bar.rsi >= stock.rsiHigh);
 
-        const mostRecentData = tradeData[tradeData.length - 1];
-
-        await writeToFile(stock, mostRecentData);
+        const mostRecentData = tradeData.slice(-1)[0];
 
         const {
             isBullishCloudComing,
@@ -131,47 +140,45 @@ class TradingBot {
             cloudBreakthroughUp,
         } = this.getIchimokuSignals(tradeData, ichimokuResult);
 
-        // const openOrders = await this.client.getOpenOrders(stock.symbol);
-
-        if (cloudBreakthroughUp && isBullishCloudComing) {
-            this.buySignal = purchaseTypes.BREAKTHROUGH;
-        } else if (tenkanCrossedKijunUp && isBullishCloudComing && kumoCloudBeneathPrice) {
-            this.buySignal = purchaseTypes.CROSSING;
-        }
-
-        // console.log(
-        //     `${tenkanCrossedKijun && chalk.green(tenkanCrossedKijun)}, ${!isCloudThin && chalk.green(!isCloudThin)}, ${
-        //         isBullishCloudComing && chalk.green(isBullishCloudComing)
-        //     }, ${kumoCloudBeneathPrice && chalk.green(kumoCloudBeneathPrice)} - ${mostRecentData.date}`
-        // );
+        const isBullishTrend = isBullishCloudComing && kumoCloudBeneathPrice;
 
         // breakthrough is a big risk because no bullish trend is yet established. Sell condition should be more loose
 
-        switch (this.buySignal) {
-            case purchaseTypes.BREAKTHROUGH:
-                this.sellSignal = chikouSpanTouchesPrice && isBearishCloudComing;
+        if (doTrade) {
+            if (cloudBreakthroughUp && isBullishCloudComing) {
+                this.buySignal = purchaseTypes.BREAKTHROUGH;
+            } else if (tenkanCrossedKijunUp && isBullishCloudComing && kumoCloudBeneathPrice) {
+                this.buySignal = purchaseTypes.CROSSING;
+            }
 
-                if (this.hasStockBeenSold) {
-                    this.hasStockBeenSold = false;
-                    await this.buy(mostRecentData, stock);
-                }
-                break;
-            case purchaseTypes.CROSSING:
-                this.sellSignal = chikouSpanTouchesPrice && chikouSpanLong;
+            switch (this.buySignal) {
+                case purchaseTypes.BREAKTHROUGH:
+                    this.sellSignal = chikouSpanTouchesPrice;
 
-                if (this.hasStockBeenSold) {
-                    this.hasStockBeenSold = false;
-                    await this.buy(mostRecentData, stock);
-                }
-                break;
-            default:
-                this.sellSignal = "";
+                    if (this.hasStockBeenSold) {
+                        this.hasStockBeenSold = false;
+                        await this.buy(mostRecentData, stock);
+                    }
+                    break;
+                case purchaseTypes.CROSSING:
+                    this.sellSignal = tenkanCrossedKijunDown;
+
+                    if (this.hasStockBeenSold) {
+                        this.hasStockBeenSold = false;
+                        await this.buy(mostRecentData, stock);
+                    }
+                    break;
+                default:
+                    this.sellSignal = "";
+            }
+
+            if (this.sellSignal && !this.hasStockBeenSold) {
+                await this.sell(mostRecentData, stock);
+                this.buySignal = "";
+            }
         }
 
-        if (this.sellSignal && !this.hasStockBeenSold) {
-            await this.sell(mostRecentData, stock);
-            this.buySignal = "";
-        }
+        return { isBullish: isBullishTrend, timestamp: mostRecentData.date };
     }
 
     async buy(item, stock) {
@@ -201,7 +208,7 @@ class TradingBot {
         }
 
         await this.client.createBuyOrder(item, qty, stock);
-        // await this.client.createOcoSellOrder(item, qty, stock);
+        await this.client.createOcoSellOrder(item, qty, stock);
 
         console.log(chalk.green(`Buying ${item.symbol} for price: ${parseFloat(item.close * qty).toFixed(2)}$. Timestamp: ${item.date}`));
         console.log("Remaining balance", balance);
@@ -322,6 +329,29 @@ class TradingBot {
             cloudBreakthroughUp,
         };
     }
+}
+
+async function getTradeDataFromFile(stock, timestamp) {
+    if (!stock.symbol) return;
+
+    let data = [];
+    let unixTime = moment(timestamp).unix();
+
+    return new Promise((resolve) => {
+        fs.createReadStream(`data/BTCUSDT_15m_2.csv`)
+            .pipe(csv())
+            .on("data", (row) => {
+                data.push(row);
+            })
+            .on("end", () => {
+                const filteredData = data
+                    .filter((x) => {
+                        return x.time <= unixTime;
+                    })
+                    .slice(-200);
+                resolve(filteredData);
+            });
+    });
 }
 
 async function writeToFile(stock, obj) {

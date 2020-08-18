@@ -24,7 +24,7 @@ app.get("/start", async (req, res) => {
             intervalObj[item.symbol] = setIntervalAsync(async () => {
                 await strategy.run(item);
                 resolve();
-            }, 5000);
+            }, 60000);
         });
 
         promiseArray.push(promise);
@@ -35,9 +35,6 @@ app.get("/start", async (req, res) => {
     res.send("Trading started");
 });
 
-const strategy = new TradingBot();
-strategy.run(config[1]);
-
 app.get("/stop", (req, res) => {
     config.forEach((item) => {
         clearIntervalAsync(intervalObj[item.symbol]);
@@ -46,4 +43,4 @@ app.get("/stop", (req, res) => {
     res.send("Trading stopped");
 });
 
-// app.listen(port, () => console.log(`Running at port:${port}`));
+app.listen(port, () => console.log(`Running at port:${port}`));

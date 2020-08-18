@@ -118,8 +118,8 @@ class BinanceClient {
         );
     }
 
-    async getLatestTickerData(symbol) {
-        const data = await getRequest("klines", `symbol=${symbol}&interval=1m&limit=200`);
+    async getLatestTickerData(symbol, interval) {
+        const data = await getRequest("klines", `symbol=${symbol}&interval=${interval}&limit=200`);
 
         const formattedData = data.map((x) => ({
             close: x[4],
@@ -168,6 +168,10 @@ class BinanceClient {
         data.forEach((x) => (totalAmount += parseFloat(x.price) * parseFloat(x.qty)));
 
         return totalAmount;
+    }
+
+    getResults() {
+        return null;
     }
 }
 

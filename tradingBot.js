@@ -140,7 +140,7 @@ class TradingBot {
             cloudBreakthroughUp,
         } = this.getIchimokuSignals(tradeData, ichimokuResult);
 
-        const isBullishTrend = isBullishCloudComing && kumoCloudBeneathPrice;
+        const isBullishTrend = isBullishCloudComing;
 
         // breakthrough is a big risk because no bullish trend is yet established. Sell condition should be more loose
 

@@ -7,13 +7,12 @@ const csv = require("csv-parser");
 const path = require("path");
 const Ichimoku = require("./ichimoku");
 
-const { timeout } = require("./utils");
-
 const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}.json`);
 
 const purchaseTypes = {
     BREAKTHROUGH: "breakthrough",
     CROSSING: "crossing",
+    BOUNCE: "bounce",
 };
 
 class TradingBot {
@@ -37,8 +36,6 @@ class TradingBot {
     }
 
     async run(config, backtestData) {
-        console.log(chalk.yellow("Running..."));
-
         if (!this.configInitialized && !backtestData) {
             await this.client.getExchangeData(config);
             this.configInitialized = true;
@@ -52,14 +49,16 @@ class TradingBot {
                 this.tradingData = data;
             }
 
-            // fifteen and five data is out of sync. Need to read five data and select based on the date of fifteen.
-
             const { isBullish, timestamp } = await this.handleTrade(config, this.tradingData, false);
 
             if (isBullish) {
-                // const result = await getTradeDataFromFile(config, timestamp);
-                const tradeData = await this.client.getLatestTickerData(config.symbol, "5m");
-                await this.handleTrade(config, tradeData);
+                if (backtestData) {
+                    const result = await getTradeDataFromFile(config, timestamp);
+                    await this.handleTrade(config, result);
+                } else {
+                    const tradeData = await this.client.getLatestTickerData(config.symbol, "5m");
+                    await this.handleTrade(config, tradeData);
+                }
             }
         } catch (error) {
             const errMsg = error.message;
@@ -138,17 +137,20 @@ class TradingBot {
             isCloudThin,
             priceCrossedKijunSupport,
             cloudBreakthroughUp,
+            bounceOffCloudSupport,
         } = this.getIchimokuSignals(tradeData, ichimokuResult);
 
-        const isBullishTrend = isBullishCloudComing;
+        const isBullishTrend = true;
 
         // breakthrough is a big risk because no bullish trend is yet established. Sell condition should be more loose
 
         if (doTrade) {
             if (cloudBreakthroughUp && isBullishCloudComing) {
                 this.buySignal = purchaseTypes.BREAKTHROUGH;
-            } else if (tenkanCrossedKijunUp && isBullishCloudComing && kumoCloudBeneathPrice) {
+            } else if (tenkanCrossedKijunUp && chikouSpanLong && isBullishCloudComing) {
                 this.buySignal = purchaseTypes.CROSSING;
+            } else if (bounceOffCloudSupport && isBullishCloudComing) {
+                this.buySignal = purchaseTypes.BOUNCE;
             }
 
             switch (this.buySignal) {
@@ -162,6 +164,14 @@ class TradingBot {
                     break;
                 case purchaseTypes.CROSSING:
                     this.sellSignal = tenkanCrossedKijunDown;
+
+                    if (this.hasStockBeenSold) {
+                        this.hasStockBeenSold = false;
+                        await this.buy(mostRecentData, stock);
+                    }
+                    break;
+                case purchaseTypes.BOUNCE:
+                    this.sellSignal = chikouSpanTouchesPrice;
 
                     if (this.hasStockBeenSold) {
                         this.hasStockBeenSold = false;
@@ -268,20 +278,29 @@ class TradingBot {
 
         // Kumo cloud
         const futureCloud = data.slice(startIndex + 1, data.length).map((x) => ({ ssa: x.kumo.ssa, ssb: x.kumo.ssb }));
+        const last10BarsOfData = tradeData.slice(-10);
+        const last5BarsOfData = tradeData.slice(-5);
 
         const isBullishCloudComing = futureCloud.slice(-1).every((x) => x.ssa > x.ssb);
         const isBearishCloudComing = futureCloud.slice(-1).every((x) => x.ssa < x.ssb);
 
-        const last10BarsOfData = tradeData.slice(-10);
-        const last5BarsOfData = tradeData.slice(-5);
+        const isBullishCloud = last5BarsOfData.every((x) => x.ichimoku.kumo.ssa < x.close);
 
-        const kumoCloudBeneathPrice = last5BarsOfData.every((x) => x.ichimoku.kumo.ssa < x.close && x.ichimoku.kumo.ssb < x.close);
+        const kumoCloudBeneathPrice = isBullishCloud
+            ? last5BarsOfData.every((x) => x.ichimoku.kumo.ssa < x.close)
+            : last5BarsOfData.every((x) => x.ichimoku.kumo.ssb < x.close);
         const cloudThickness = parseFloat(kumo.ssa) - parseFloat(kumo.ssb);
         const isCloudThin = cloudThickness < 20 && cloudThickness > -20;
 
         const cloudBreakthroughUp =
             last10BarsOfData.slice(0, -4).every((x) => x.ichimoku.kumo.ssa > x.close || x.ichimoku.kumo.ssb > x.close) &&
             last10BarsOfData.slice(-2).every((x) => x.ichimoku.kumo.ssa < x.close && x.ichimoku.kumo.ssb < x.close);
+
+        const bounceOffCloudSupport =
+            last10BarsOfData[0].close > last10BarsOfData[3].close &&
+            last10BarsOfData[last10BarsOfData.length - 1].close > last10BarsOfData[last10BarsOfData.length - 2].close &&
+            mostRecentData.close > mostRecentData.ichimoku.kumo.ssb &&
+            last10BarsOfData.some((x) => Math.abs(x.close - x.ichimoku.kumo.ssb) < 0.4 || Math.abs(x.close - x.ichimoku.kumo.ssa) < 0.4);
 
         // if last 8 bars i beneath or inside cloud && last two bars are above topside of cloud
 
@@ -296,10 +315,10 @@ class TradingBot {
         // chikouSpan signals
         const chikouLength = tradeData.length - chikouIndex;
         const { close: chikouClosePrice, ichimoku: ichimokuAtChikou } = tradeData[chikouLength];
-        const last15BarsBehindChikou = tradeData.slice(chikouLength - 15, chikouLength);
+        const last5BarsBehindChikou = tradeData.slice(chikouLength - 5, chikouLength);
         const last4BarsBehindChikou = tradeData.slice(chikouLength - 4, chikouLength);
 
-        const chikouSpanLong = last15BarsBehindChikou.every(
+        const chikouSpanLong = last5BarsBehindChikou.every(
             (x) =>
                 x.ichimoku.chikouSpan > x.close &&
                 x.ichimoku.chikouSpan > x.ichimoku.kumo.ssa &&
@@ -327,6 +346,7 @@ class TradingBot {
             isCloudThin,
             priceCrossedKijunSupport,
             cloudBreakthroughUp,
+            bounceOffCloudSupport,
         };
     }
 }
@@ -338,7 +358,7 @@ async function getTradeDataFromFile(stock, timestamp) {
     let unixTime = moment(timestamp).unix();
 
     return new Promise((resolve) => {
-        fs.createReadStream(`data/BTCUSDT_15m_2.csv`)
+        fs.createReadStream(`data/BTCUSDT_5m.csv`)
             .pipe(csv())
             .on("data", (row) => {
                 data.push(row);

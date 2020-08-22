@@ -44,7 +44,7 @@ class BackTesting {
     async initializedData(symbol) {
         return new Promise((resolve, reject) => {
             try {
-                fs.createReadStream(`data/BTCUSDT_15m.csv`)
+                fs.createReadStream(`data/ETHUSDT_15_2020-08-21.csv`)
                     .pipe(csv())
                     .on("data", (row) => {
                         this.tradingData.push(row);
@@ -60,4 +60,4 @@ class BackTesting {
 }
 
 const testing = new BackTesting();
-testing.run("BTCUSDT");
+testing.run("ETHUSDT");

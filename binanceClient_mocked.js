@@ -6,6 +6,9 @@ class BinanceClientMocked {
             BTC: {
                 free: 0,
             },
+            ETH: {
+                free: 0,
+            },
             USDT: {
                 free: 0,
             },

@@ -11,7 +11,7 @@ module.exports = [
         stopLimitMultiplier: 2.2,
         takeProfitMultiplier: 4,
         // atrMod: 0.05,
-        atrMod: 0.3,
+        atrMod: 0.5,
     },
     {
         symbol: "ETHUSDT",
@@ -25,7 +25,7 @@ module.exports = [
         stopLimitMultiplier: 2.2,
         takeProfitMultiplier: 8,
         // atrMod: 15,
-        atrMod: 3,
+        atrMod: 10,
     },
     {
         symbol: "LTCUSDT",
@@ -38,7 +38,7 @@ module.exports = [
         stopLossMultiplier: 2,
         stopLimitMultiplier: 2.2,
         takeProfitMultiplier: 8,
-        atrMod: 3,
+        atrMod: 10,
     },
     {
         symbol: "LINKUSDT",
@@ -51,6 +51,6 @@ module.exports = [
         stopLossMultiplier: 2,
         stopLimitMultiplier: 2.2,
         takeProfitMultiplier: 8,
-        atrMod: 3,
+        atrMod: 10,
     },
 ];

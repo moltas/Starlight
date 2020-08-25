@@ -198,9 +198,6 @@ class TradingBot {
             qty += stock.stepSize;
         }
 
-        console.log(this.getPriceModifier(stock, item.atr));
-        console.log(qty, item.close);
-
         if (qty * item.close < stock.minNotional) {
             console.log(
                 chalk.red(

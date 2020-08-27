@@ -148,6 +148,7 @@ class TradingBot {
                 this.buySignal = purchaseTypes.CROSSING;
             } else if (cloudBreakthroughUp && isTrendReversalComing) {
                 this.buySignal = purchaseTypes.BREAKTHROUGH;
+                stock.takeProfitMultiplier = 2;
             } else if (bounceOffCloudSupport) {
                 // this.buySignal = purchaseTypes.BOUNCE;
             }
@@ -293,7 +294,7 @@ class TradingBot {
         const isCloudThin = cloudThickness < 20 && cloudThickness > -20;
 
         const cloudBreakthroughUp =
-            last10BarsOfData.slice(0, -4).every((x) => x.ichimoku.kumo.ssa > x.close || x.ichimoku.kumo.ssb > x.close) &&
+            last10BarsOfData.slice(0, -4).every((x) => x.ichimoku.kumo.ssa > x.close && x.ichimoku.kumo.ssb > x.close) &&
             last10BarsOfData.slice(-2).every((x) => x.ichimoku.kumo.ssa < x.close && x.ichimoku.kumo.ssb < x.close);
 
         const bounceOffCloudSupport =

@@ -1,18 +1,18 @@
-const axios = require("axios");
-const crypto = require("crypto");
-const chalk = require("chalk");
+import axios from "axios";
+import crypto from "crypto";
+import chalk from "chalk";
 
 const BASE_URL = "https://api.binance.com/api/v3";
 const API_KEY = "UFXm47ecR6IaD2hMlFDclbNxQF9dVPVnssYFAm99VUtoPI65EYgAaOai4nuEwHSC";
 const API_SECRET = "6rVeGsEWErt0Vbfb8DeMYn9xwPOnNfa8zdshB49lMfq4tnnfnq2KXOfDwpGxDlb5";
 
-async function asyncForEach(array, callback) {
+export async function asyncForEach(array: any[], callback: Function) {
     for (let index = 0; index < array.length; index++) {
         await callback(array[index], index, array);
     }
 }
 
-function mergeObjectsInUnique(array, property) {
+export function mergeObjectsInUnique(array: any[], property: string) {
     const newArray = new Map();
 
     array.forEach((item) => {
@@ -25,16 +25,16 @@ function mergeObjectsInUnique(array, property) {
     return Array.from(newArray.values());
 }
 
-function timeout(ms) {
+export function timeout(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function countDecimals(value) {
+export function countDecimals(value: number) {
     if (Math.floor(value) === value) return 0;
     return value.toString().split(".")[1].length || 0;
 }
 
-async function getRequest(route, params, isSigned = false, headers = {}) {
+export async function getRequest(route: string, params: string, isSigned = false, headers = {}) {
     const HMAC_KEY = crypto.createHmac("sha256", API_SECRET).update(params).digest("hex");
 
     try {
@@ -49,7 +49,7 @@ async function getRequest(route, params, isSigned = false, headers = {}) {
     }
 }
 
-async function postRequest(route, params, isSigned = false, headers = {}) {
+export async function postRequest(route: string, params: string, isSigned = false, headers = {}) {
     const HMAC_KEY = crypto.createHmac("sha256", API_SECRET).update(params).digest("hex");
 
     try {
@@ -64,7 +64,7 @@ async function postRequest(route, params, isSigned = false, headers = {}) {
     }
 }
 
-async function deleteRequest(route, params, isSigned = false, headers = {}) {
+export async function deleteRequest(route: string, params: string, isSigned = false, headers = {}) {
     const HMAC_KEY = crypto.createHmac("sha256", API_SECRET).update(params).digest("hex");
 
     try {
@@ -78,13 +78,3 @@ async function deleteRequest(route, params, isSigned = false, headers = {}) {
         return Promise.reject(errMsg);
     }
 }
-
-module.exports = {
-    asyncForEach,
-    mergeObjectsInUnique,
-    timeout,
-    countDecimals,
-    getRequest,
-    postRequest,
-    deleteRequest,
-};

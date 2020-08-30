@@ -1,53 +1,45 @@
-const bodyParser = require("body-parser");
-const express = require("express");
-const chalk = require("chalk");
-const fs = require("fs");
-const csv = require("csv-parser");
+import fs from "fs";
+import csv from "csv-parser";
+import { asyncForEach } from "./utils";
 
-const { asyncForEach } = require("./utils");
+import config from "./config";
+import TradingBot from "./tradingBot";
 
-const config = require("./config");
-const TradingBot = require("./tradingBot");
-
-const BinanceClientMocked = require("./binanceClient_mocked");
-
-const app = express();
-const port = 5050;
-
-app.use(bodyParser.json({ strict: false }));
-
-const client = new BinanceClientMocked();
+import BinanceClientMocked from "./clients/binanceClient_mocked";
 
 class BackTesting {
+    tradingData: any[];
+
     constructor() {
         this.tradingData = [];
     }
 
-    async run(symbol) {
+    async run(symbol: string) {
+        const client = new BinanceClientMocked();
         const tradingBot = new TradingBot(client);
 
         await this.initializedData(symbol);
 
         let results = null;
 
-        await asyncForEach(this.tradingData, async (x, i) => {
+        await asyncForEach(this.tradingData, async (x: any, i: number) => {
             const slice = this.tradingData.slice(i, i + 200);
 
             if (slice.length === 200) {
-                results = await tradingBot.run(config.filter((x) => x.symbol === symbol)[0], slice);
+                results = await tradingBot.run(config.filter((x: any) => x.symbol === symbol)[0], slice);
             }
         });
 
         console.log("results: ", results);
     }
 
-    async initializedData(symbol) {
+    async initializedData(symbol: string) {
         return new Promise((resolve, reject) => {
             try {
                 fs.createReadStream(`data/ETHUSDT_15_2020-08-21.csv`)
                     .pipe(csv())
-                    .on("data", (row) => {
-                        this.tradingData.push(row);
+                    .on("data", (row: any) => {
+                        return this.tradingData.push(row);
                     })
                     .on("end", () => {
                         resolve();

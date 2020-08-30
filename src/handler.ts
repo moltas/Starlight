@@ -1,10 +1,10 @@
-const bodyParser = require("body-parser");
-const express = require("express");
-const { setIntervalAsync, clearIntervalAsync } = require("set-interval-async/dynamic");
+import bodyParser from "body-parser";
+import express from "express";
+import { setIntervalAsync, clearIntervalAsync } from "set-interval-async/dynamic";
 
-const config = require("./config");
-const TradingBot = require("./tradingBot");
-const BinanceClient = require("./binanceClient");
+import config from "./config";
+import TradingBot from "./tradingBot";
+import BinanceClient from "./clients/binanceClient";
 
 const app = express();
 const port = 5000;

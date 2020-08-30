@@ -1,4 +1,4 @@
-module.exports = [
+export default [
     {
         symbol: "BTCUSDT",
         decimals: 2,

@@ -1,7 +1,15 @@
 class Ichimoku {
-    constructor(high, low, close) {
+    data: any[];
+    highs: any;
+    lows: any;
+    closes: any;
+    result: any[];
+
+    constructor(high: any[], low: any[], close: any[]) {
         this.data = [];
-        high.forEach((x, i) => this.data.push({ high: parseFloat(high[i]), low: parseFloat(low[i]), close: parseFloat(close[i]) }));
+        high.forEach((x: any, i: number) =>
+            this.data.push({ high: parseFloat(high[i]), low: parseFloat(low[i]), close: parseFloat(close[i]) })
+        );
 
         this.highs = high;
         this.lows = low;
@@ -47,13 +55,13 @@ class Ichimoku {
         return arr.reverse();
     }
 
-    getKumoCloud(tenkan, kijun) {
+    getKumoCloud(tenkan: any[], kijun: any[]) {
         const ssa = tenkan.map((x, i) => (tenkan[i] + kijun[i]) / 2);
 
         const ssb = this.getAverages(52);
 
         const filledArray = Array.from({ length: 25 }, () => ({ ssa: 0, ssb: 0 }));
-        const combined = ssa.map((x, i) => ({ ssa: x ? x.toFixed(3) : x, ssb: ssb[i] ? ssb[i].toFixed(3) : ssb[i] }));
+        const combined = ssa.map((x, i) => ({ ssa: x ? Number(x.toFixed(3)) : x, ssb: ssb[i] ? ssb[i].toFixed(3) : ssb[i] }));
 
         const result = filledArray.concat(combined);
 
@@ -69,4 +77,4 @@ class Ichimoku {
     }
 }
 
-module.exports = Ichimoku;
+export default Ichimoku;

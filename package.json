@@ -4,7 +4,9 @@
     "description": "",
     "main": "index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "start": "npm run transpile && node dist/handler",
+        "backtest": "npm run transpile && node dist/backtesting",
+        "transpile": "tsc -p ./tsconfig.json"
     },
     "author": "",
     "license": "ISC",
@@ -22,7 +24,12 @@
         "ws": "^7.3.1"
     },
     "devDependencies": {
-        "eslint": "^7.4.0",
-        "serverless-plugin-include-dependencies": "^4.1.0"
+        "@types/body-parser": "^1.19.0",
+        "@types/chalk": "^2.2.0",
+        "@types/express": "^4.17.7",
+        "@types/moment": "^2.13.0",
+        "@types/node": "^14.6.2",
+        "@types/set-interval-async": "^1.0.0",
+        "eslint": "^7.4.0"
     }
 }

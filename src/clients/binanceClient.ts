@@ -1,5 +1,6 @@
-const moment = require("moment");
-const { mergeObjectsInUnique, getRequest, postRequest, deleteRequest } = require("./utils");
+import moment from "moment";
+import { getRequest, postRequest, deleteRequest } from "../utils";
+import { TradeItem } from "../model";
 
 class BinanceClient {
     constructor() {}
@@ -12,7 +13,7 @@ class BinanceClient {
         return obj[0].free;
     }
 
-    async getPositions(symbol) {
+    async getPositions(symbol: string) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
 
@@ -26,7 +27,7 @@ class BinanceClient {
         return balances;
     }
 
-    async getOpenOrders(symbol) {
+    async getOpenOrders(symbol: string) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
         const data = await getRequest("openOrders", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
@@ -39,7 +40,7 @@ class BinanceClient {
         return data;
     }
 
-    async cancelOpenOrders(symbol) {
+    async cancelOpenOrders(symbol: string) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
         const status = await deleteRequest("openOrders", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
@@ -47,12 +48,12 @@ class BinanceClient {
         return status;
     }
 
-    async getCurrentAvgPrice(symbol) {
+    async getCurrentAvgPrice(symbol: string) {
         const { price } = await getRequest("avgPrice", `symbol=${symbol}`);
         return price;
     }
 
-    async createBuyOrder(item, quantity, config) {
+    async createBuyOrder(item: TradeItem, quantity: number, config: any) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
 
@@ -63,7 +64,7 @@ class BinanceClient {
         );
     }
 
-    async createSellOrder(item, quantity, config) {
+    async createSellOrder(item: TradeItem, quantity: number, config: any) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
 
@@ -74,15 +75,15 @@ class BinanceClient {
         );
     }
 
-    async createStopLimitOrder(item, quantity, config) {
+    async createStopLimitOrder(item: TradeItem, quantity: number, config: any) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
 
         const atrStopLoss = item.close - item.atr * config.stopLossMultiplier;
         const atrStopLimit = item.close - item.atr * config.stopLimitMultiplier;
 
-        const stopPrice = parseFloat(atrStopLoss);
-        const stopLimitPrice = parseFloat(atrStopLimit);
+        const stopPrice = parseFloat(String(atrStopLoss));
+        const stopLimitPrice = parseFloat(String(atrStopLimit));
 
         return await postRequest(
             "order",
@@ -95,17 +96,17 @@ class BinanceClient {
         );
     }
 
-    async createOcoSellOrder(item, quantity, config) {
+    async createOcoSellOrder(item: TradeItem, quantity: number, config: any) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
 
-        const atrTakeProfit = parseFloat(item.close) + item.atr * config.takeProfitMultiplier;
+        const atrTakeProfit = parseFloat(String(item.close)) + item.atr * config.takeProfitMultiplier;
         const atrStopLoss = item.close - item.atr * config.stopLossMultiplier;
         const atrStopLimit = item.close - item.atr * config.stopLimitMultiplier;
 
-        const price = parseFloat(atrTakeProfit);
-        const stopPrice = parseFloat(atrStopLoss);
-        const stopLimitPrice = parseFloat(atrStopLimit);
+        const price = parseFloat(String(atrTakeProfit));
+        const stopPrice = parseFloat(String(atrStopLoss));
+        const stopLimitPrice = parseFloat(String(atrStopLimit));
 
         return await postRequest(
             "order/oco",
@@ -118,7 +119,7 @@ class BinanceClient {
         );
     }
 
-    async getLatestTickerData(symbol, interval) {
+    async getLatestTickerData(symbol: string, interval: any) {
         const data = await getRequest("klines", `symbol=${symbol}&interval=${interval}&limit=200`);
 
         const formattedData = data.map((x) => ({
@@ -131,7 +132,7 @@ class BinanceClient {
         return formattedData;
     }
 
-    async getExchangeData(config) {
+    async getExchangeData(config: any) {
         const data = await getRequest("exchangeInfo", "");
 
         const coinInfo = data.symbols.filter((x) => x.symbol === config.symbol)[0];
@@ -149,7 +150,7 @@ class BinanceClient {
         return;
     }
 
-    async getLastBuy(symbol) {
+    async getLastBuy(symbol: string) {
         const timeInMilliseconds = moment().valueOf();
         const isSigned = true;
         let data = await getRequest("myTrades", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
@@ -175,4 +176,4 @@ class BinanceClient {
     }
 }
 
-module.exports = BinanceClient;
+export default BinanceClient;

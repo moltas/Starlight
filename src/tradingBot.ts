@@ -8,7 +8,7 @@ import csv from "csv-parser";
 import path from "path";
 import Ichimoku from "./ichimoku";
 
-import { TradeItem } from "./model/index";
+import { TradeItem, OpenOrderResponse } from "./model/index";
 
 const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}.json`);
 
@@ -25,7 +25,6 @@ class TradingBot {
     tradingData: any[];
     buySignal: string;
     sellSignal: boolean;
-    waitList: any;
 
     constructor(client: any) {
         this.client = client;
@@ -153,6 +152,19 @@ class TradingBot {
 
         const openOrders = await this.client.getOpenOrders(stock.symbol);
 
+        if (openOrders.length > 0) {
+            const limitMakerOrder = openOrders.filter((x: OpenOrderResponse) => x.type === "LIMIT_MAKER")[0];
+            const stopLossOrder = openOrders.filter((x: OpenOrderResponse) => x.type === "STOP_LOSS_LIMIT")[0];
+
+            if (limitMakerOrder.price <= mostRecentData.close) {
+                this.client.sellOrder(stock.symbol, limitMakerOrder.price);
+            }
+
+            if (stopLossOrder.stopPrice >= mostRecentData.close) {
+                this.client.sellOrder(stock.symbol, stopLossOrder.stopPrice);
+            }
+        }
+
         let isBullishTrend = openOrders.length === 0 ? isBullishCloudComing : true;
 
         if (doTrade) {
@@ -217,7 +229,6 @@ class TradingBot {
                     `Buy validation failed. MinNotional not reached. Amount is ${qty * item.close} and minNotional is ${stock.minNotional}`
                 )
             );
-            this.waitList = this.waitList.filter((x: any) => x !== stock.symbol);
             return false;
         }
 
@@ -225,7 +236,6 @@ class TradingBot {
             console.log(
                 chalk.red(`Buy validation failed. Not enough balance (${balance}) to buy - ${stock.symbol} at price ${qty * item.close}`)
             );
-            this.waitList = this.waitList.filter((x: any) => x !== stock.symbol);
             return false;
         }
 

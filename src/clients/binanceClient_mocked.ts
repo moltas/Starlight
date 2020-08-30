@@ -1,4 +1,4 @@
-import { OcoOrder, StopLimitOrder, TradeItem } from "../model/index";
+import { OcoOrder, StopLimitOrder, TradeItem, OpenOrderResponse } from "../model/index";
 
 class BinanceClientMocked {
     balance: number;
@@ -77,7 +77,31 @@ class BinanceClientMocked {
     }
 
     async createOcoSellOrder(item: TradeItem, quantity: number, config: any) {
-        // TBD
+        const atrTakeProfit = parseFloat(String(item.close)) + item.atr * config.takeProfitMultiplier;
+        const atrStopLoss = item.close - item.atr * config.stopLossMultiplier;
+        const atrStopLimit = item.close - item.atr * config.stopLimitMultiplier;
+
+        const price = parseFloat(String(atrTakeProfit));
+        const stopPrice = parseFloat(String(atrStopLoss));
+        const stopLimitPrice = parseFloat(String(atrStopLimit));
+
+        const stopLossOrder = new OpenOrderResponse(
+            item.symbol,
+            stopLimitPrice.toFixed(config.decimals),
+            quantity.toFixed(config.precision),
+            "STOP_LOSS_LIMIT",
+            stopPrice.toFixed(config.decimals)
+        );
+
+        const limitMakerOrder = new OpenOrderResponse(
+            item.symbol,
+            price.toFixed(config.decimals),
+            quantity.toFixed(config.precision),
+            "LIMIT_MAKER"
+        );
+
+        this.openOrders.push(stopLossOrder);
+        this.openOrders.push(limitMakerOrder);
     }
 
     getLatestTickerData(symbol: string): any[] {
@@ -90,6 +114,15 @@ class BinanceClientMocked {
 
     async getLastBuy(symbol: string) {
         return 0.0;
+    }
+
+    async sellOrder(symbol: string, price: string) {
+        await this.cancelOpenOrders(symbol);
+        this.balance += Number(price);
+        this.numberOfTrades++;
+        if (price > this.lastPosition) {
+            this.numberOfProfitableTrades++;
+        }
     }
 }
 

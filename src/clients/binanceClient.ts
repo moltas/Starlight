@@ -171,6 +171,8 @@ class BinanceClient {
         return totalAmount;
     }
 
+    async sellOrder(symbol: string, price: string) {}
+
     getResults() {
         return null;
     }

@@ -153,15 +153,15 @@ class TradingBot {
         const openOrders = await this.client.getOpenOrders(stock.symbol);
 
         if (openOrders.length > 0) {
-            const limitMakerOrder = openOrders.filter((x: OpenOrderResponse) => x.type === "LIMIT_MAKER")[0];
-            const stopLossOrder = openOrders.filter((x: OpenOrderResponse) => x.type === "STOP_LOSS_LIMIT")[0];
+            const limitMakerOrder: OpenOrderResponse = openOrders.filter((x: OpenOrderResponse) => x.type === "LIMIT_MAKER")[0];
+            const stopLossOrder: OpenOrderResponse = openOrders.filter((x: OpenOrderResponse) => x.type === "STOP_LOSS_LIMIT")[0];
 
             if (limitMakerOrder.price <= mostRecentData.close) {
-                this.client.sellOrder(stock.symbol, limitMakerOrder.price);
+                this.client.sellOrder(stock.symbol, limitMakerOrder.amount, limitMakerOrder.origQty);
             }
 
             if (stopLossOrder.stopPrice >= mostRecentData.close) {
-                this.client.sellOrder(stock.symbol, stopLossOrder.stopPrice);
+                this.client.sellOrder(stock.symbol, stopLossOrder.amount, stopLossOrder.origQty);
             }
         }
 
@@ -172,7 +172,7 @@ class TradingBot {
                 this.buySignal = purchaseTypes.CROSSING;
             } else if (cloudBreakthroughUp && isTrendReversalComing) {
                 this.buySignal = purchaseTypes.BREAKTHROUGH;
-                stock.takeProfitMultiplier = 2;
+                stock.takeProfitMultiplier = 3;
             } else if (bounceOffCloudSupport) {
                 // this.buySignal = purchaseTypes.BOUNCE;
             }
@@ -272,7 +272,6 @@ class TradingBot {
                 await this.client.cancelOpenOrders(item.symbol);
             }
 
-            // await this.client.createOcoSellOrder(item, qty, stock);
             await this.client.createSellOrder(item, qty, stock);
 
             console.log(
@@ -411,7 +410,7 @@ async function getTradeDataFromFile(stock: { symbol: any }, timestamp: any) {
     let unixTime = moment(timestamp).unix();
 
     return new Promise((resolve) => {
-        fs.createReadStream(`data/ETHUSDT_5_2020-08-21.csv`)
+        fs.createReadStream(`data/${stock.symbol}_5_2020-08-21.csv`)
             .pipe(csv())
             .on("data", (row: any) => {
                 data.push(row);

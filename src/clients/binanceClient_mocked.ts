@@ -31,11 +31,13 @@ class BinanceClientMocked {
     }
 
     getResults() {
+        const difference = this.balance - this.startingCapital;
+
         return {
             balance: this.balance,
             numberOfTrades: this.numberOfTrades,
             numberOfProfitableTrades: this.numberOfProfitableTrades,
-            profitPercentage: (this.balance / this.startingCapital).toFixed(3),
+            profitPercentage: `${Number((difference / this.startingCapital) * 100).toFixed(3)}%`,
         };
     }
 
@@ -87,6 +89,7 @@ class BinanceClientMocked {
 
         const stopLossOrder = new OpenOrderResponse(
             item.symbol,
+            Number(stopLimitPrice.toFixed(config.decimals)) * Number(quantity.toFixed(config.precision)),
             stopLimitPrice.toFixed(config.decimals),
             quantity.toFixed(config.precision),
             "STOP_LOSS_LIMIT",
@@ -95,6 +98,7 @@ class BinanceClientMocked {
 
         const limitMakerOrder = new OpenOrderResponse(
             item.symbol,
+            Number(price.toFixed(config.decimals)) * Number(quantity.toFixed(config.precision)),
             price.toFixed(config.decimals),
             quantity.toFixed(config.precision),
             "LIMIT_MAKER"
@@ -116,11 +120,12 @@ class BinanceClientMocked {
         return 0.0;
     }
 
-    async sellOrder(symbol: string, price: string) {
+    async sellOrder(symbol: string, amount: string, qty: string) {
         await this.cancelOpenOrders(symbol);
-        this.balance += Number(price);
+        this.balance += Number(amount);
         this.numberOfTrades++;
-        if (price > this.lastPosition) {
+        this.positions[symbol.split("USDT")[0]].free -= Number(qty);
+        if (amount > this.lastPosition) {
             this.numberOfProfitableTrades++;
         }
     }

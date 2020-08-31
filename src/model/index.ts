@@ -11,6 +11,7 @@ export interface OcoOrder {
 
 export class OpenOrderResponse {
     symbol: string;
+    amount: number;
     price: string;
     stopPrice?: string;
     origQty: string;
@@ -19,8 +20,9 @@ export class OpenOrderResponse {
     type: string;
     side: string = "SELL";
 
-    constructor(symbol: string, price: string, qty: string, type: string, side?: string, stopPrice?: string) {
+    constructor(symbol: string, amount: number, price: string, qty: string, type: string, side?: string, stopPrice?: string) {
         this.symbol = symbol;
+        this.amount = amount;
         this.price = price;
         this.origQty = qty;
         this.type = type;

@@ -35,14 +35,7 @@ class TradingBot {
         this.buySignal = "";
         this.sellSignal = false;
 
-        const fileContent = {
-            BTCUSDT: [],
-            ETHUSDT: [],
-            LTCUSDT: [],
-        };
-        fs.writeFile(filePath, JSON.stringify(fileContent), () => {
-            console.log("Resetting file");
-        });
+        console.log(chalk.yellow("Starting..."));
     }
 
     async run(config: any, backtestData?: any) {

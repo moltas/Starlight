@@ -85,7 +85,7 @@ class TradingBot {
             closePrices.push(bar.close);
             highPrices.push(bar.high);
             lowPrices.push(bar.low);
-            dates.push(moment.unix(bar.time).utc().format("YYYY-MM-DD HH:mm"));
+            dates.push(bar.time);
         });
 
         const ichimoku = new Ichimoku(highPrices, lowPrices, closePrices);

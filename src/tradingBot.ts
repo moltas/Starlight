@@ -307,6 +307,7 @@ class TradingBot {
             .map((x: { kumo: { ssa: any; ssb: any } }) => ({ ssa: x.kumo.ssa, ssb: x.kumo.ssb }));
         const last10BarsOfData: TradeItem[] = tradeData.slice(-10);
         const last5BarsOfData: TradeItem[] = tradeData.slice(-5);
+        const last3Bars: TradeItem[] = tradeData.slice(-3);
 
         const isBullishCloudComing = futureCloud.slice(-1).every((x: { ssa: number; ssb: number }) => x.ssa > x.ssb);
         const isBearishCloudComing = futureCloud.slice(-1).every((x: { ssa: number; ssb: number }) => x.ssa < x.ssb);
@@ -349,14 +350,12 @@ class TradingBot {
 
         const isTrendReversalComing = isBearishCloud && isBullishCloudComing;
 
-        // if last 8 bars i beneath or inside cloud && last two bars are above topside of cloud
-
         // Tenkan & Kijun
-        const last3Bars = tradeData.slice(-3);
 
-        const tenkanCrossedKijunUp =
-            last3Bars.slice(0, -1).every((x: { ichimoku: { tenkan: number; kijun: number } }) => x.ichimoku.tenkan < x.ichimoku.kijun) &&
-            tenkan > kijun;
+        const tenkanCrossedKijunUp = last10BarsOfData.some(
+            (x: { ichimoku: { tenkan: number; kijun: number } }) => x.ichimoku.tenkan > x.ichimoku.kijun
+        );
+
         const tenkanCrossedKijunDown =
             last3Bars.slice(0, -1).every((x: { ichimoku: { tenkan: number; kijun: number } }) => x.ichimoku.tenkan > x.ichimoku.kijun) &&
             kijun > tenkan;
@@ -410,7 +409,7 @@ async function getTradeDataFromFile(stock: { symbol: any }, timestamp: any) {
     let unixTime = moment(timestamp).unix();
 
     return new Promise((resolve) => {
-        fs.createReadStream(`data/${stock.symbol}_5_2020-08-21.csv`)
+        fs.createReadStream(`data/BINANCE_${stock.symbol}_5.csv`)
             .pipe(csv())
             .on("data", (row: any) => {
                 data.push(row);

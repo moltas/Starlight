@@ -39,7 +39,7 @@ export default [
         stopLossMultiplier: 6,
         stopLimitMultiplier: 6.2,
         takeProfitMultiplier: 8,
-        atrMod: 10,
+        atrMod: 40,
     },
     {
         symbol: "LINKUSDT",
@@ -53,6 +53,6 @@ export default [
         stopLossMultiplier: 6,
         stopLimitMultiplier: 6.2,
         takeProfitMultiplier: 8,
-        atrMod: 10,
+        atrMod: 40,
     },
 ];

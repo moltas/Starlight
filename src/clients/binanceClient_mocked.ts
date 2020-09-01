@@ -19,6 +19,9 @@ class BinanceClientMocked {
             ETH: {
                 free: 0,
             },
+            LTC: {
+                free: 0,
+            },
             USDT: {
                 free: 0,
             },

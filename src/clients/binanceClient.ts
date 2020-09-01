@@ -6,7 +6,7 @@ class BinanceClient {
     constructor() {}
 
     async getAccountBalance() {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
         const { balances } = await getRequest("account", `timestamp=${timeInMilliseconds}`, isSigned);
         const obj = balances.filter((coin) => coin.asset === "USDT");
@@ -14,7 +14,7 @@ class BinanceClient {
     }
 
     async getPositions(symbol: string) {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
 
         const { balances } = await getRequest("account", `timestamp=${timeInMilliseconds}`, isSigned);
@@ -28,7 +28,7 @@ class BinanceClient {
     }
 
     async getOpenOrders(symbol: string) {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
         const data = await getRequest("openOrders", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
 
@@ -41,7 +41,7 @@ class BinanceClient {
     }
 
     async cancelOpenOrders(symbol: string) {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
         const status = await deleteRequest("openOrders", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
 
@@ -54,7 +54,7 @@ class BinanceClient {
     }
 
     async createBuyOrder(item: TradeItem, quantity: number, config: any) {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
 
         return await postRequest(
@@ -65,7 +65,7 @@ class BinanceClient {
     }
 
     async createSellOrder(item: TradeItem, quantity: number, config: any) {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
 
         return await postRequest(
@@ -76,7 +76,7 @@ class BinanceClient {
     }
 
     async createStopLimitOrder(item: TradeItem, quantity: number, config: any) {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
 
         const atrStopLoss = item.close - item.atr * config.stopLossMultiplier;
@@ -97,7 +97,7 @@ class BinanceClient {
     }
 
     async createOcoSellOrder(item: TradeItem, quantity: number, config: any) {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
 
         const atrTakeProfit = parseFloat(String(item.close)) + item.atr * config.takeProfitMultiplier;
@@ -151,7 +151,7 @@ class BinanceClient {
     }
 
     async getLastBuy(symbol: string) {
-        const timeInMilliseconds = moment().valueOf();
+        const timeInMilliseconds = moment().utc().valueOf();
         const isSigned = true;
         let data = await getRequest("myTrades", `symbol=${symbol}&timestamp=${timeInMilliseconds}`, isSigned);
 

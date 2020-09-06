@@ -1,12 +1,12 @@
 import fs from "fs";
 import path from "path";
 import moment from "moment";
+import chalk from "chalk";
 
 import { OcoOrder, StopLimitOrder, TradeItem, OpenOrderResponse, LogTrade, WriteObj } from "../model/index";
 
-const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}_backtest.json`);
-
 class BinanceClientMocked {
+    filepath: string;
     balance: number;
     openOrders: any[];
     positions: any;
@@ -16,6 +16,7 @@ class BinanceClientMocked {
     numberOfProfitableTrades: number;
 
     constructor(symbol: string) {
+        this.filepath = path.resolve(`output/${symbol}_backtest.json`);
         this.balance = 1000;
         this.openOrders = [];
         this.positions = {
@@ -41,15 +42,7 @@ class BinanceClientMocked {
         this.lastPosition = null;
         this.numberOfProfitableTrades = 0;
 
-        const fileContent = {
-            [symbol]: new WriteObj(),
-        };
-
-        fileContent[symbol].startBalance = this.startingCapital;
-
-        fs.writeFile(filePath, JSON.stringify(fileContent), () => {
-            console.log("Resetting file");
-        });
+        this.initLogfile(symbol);
     }
 
     getResults() {
@@ -83,7 +76,7 @@ class BinanceClientMocked {
 
     async createBuyOrder(item: TradeItem, quantity: number, config: any) {
         this.positions[config.symbol.split("USDT")[0]].free += quantity;
-        this.balance -= item.close * quantity;
+        // this.balance -= item.close * quantity;
         this.lastPosition = item.close * quantity;
 
         await this.updateTradeData(item.symbol);
@@ -91,7 +84,8 @@ class BinanceClientMocked {
 
     async createSellOrder(item: TradeItem, quantity: number, config: any) {
         this.positions[config.symbol.split("USDT")[0]].free -= quantity;
-        this.balance += item.close * quantity * 0.99;
+        this.balance -= this.lastPosition * 1.001;
+        this.balance += item.close * quantity * 0.9999;
         this.numberOfTrades++;
         if (item.close * quantity > this.lastPosition) {
             this.numberOfProfitableTrades++;
@@ -148,28 +142,45 @@ class BinanceClientMocked {
 
     async sellOrder(symbol: string, amount: string, qty: string) {
         await this.cancelOpenOrders(symbol);
-        this.balance += Number(amount) * 0.99;
+        this.balance -= this.lastPosition * 1.001;
+        this.balance += Number(amount) * 0.9999;
         this.numberOfTrades++;
         this.positions[symbol.split("USDT")[0]].free -= Number(qty);
         if (amount > this.lastPosition) {
             this.numberOfProfitableTrades++;
         }
 
+        console.log(chalk.yellow(`Selling ${symbol} for price: ${Number(amount).toFixed(2)}$.`));
+
         await this.updateTradeData(symbol);
+    }
+
+    async initLogfile(symbol: string) {
+        if (!symbol) return;
+
+        try {
+            const fileObj = { ...new WriteObj() };
+
+            fileObj.startBalance = this.startingCapital;
+
+            const writeContent = JSON.stringify(fileObj);
+            JSON.parse(writeContent);
+            await fs.promises.writeFile(this.filepath, writeContent);
+        } catch (ignored) {}
     }
 
     async logTrade(symbol: string, trade: LogTrade) {
         if (!symbol) return;
 
         try {
-            const fileContent = await fs.promises.readFile(filePath, "utf-8");
+            const fileContent = await fs.promises.readFile(this.filepath, "utf-8");
             const fileObj = JSON.parse(fileContent);
 
-            fileObj[symbol].trades.push(trade);
+            fileObj.trades.push(trade);
 
             const writeContent = JSON.stringify(fileObj);
             JSON.parse(writeContent);
-            await fs.promises.writeFile(filePath, writeContent);
+            await fs.promises.writeFile(this.filepath, writeContent);
         } catch (ignored) {}
     }
 
@@ -177,16 +188,17 @@ class BinanceClientMocked {
         if (!symbol) return;
 
         try {
-            const fileContent = await fs.promises.readFile(filePath, "utf-8");
+            const fileContent = await fs.promises.readFile(this.filepath, "utf-8");
+
             const fileObj: WriteObj = JSON.parse(fileContent);
 
-            fileObj[symbol].numberOfTrades = this.numberOfTrades;
-            fileObj[symbol].numberOfProfitableTrades = this.numberOfProfitableTrades;
-            fileObj[symbol].currentBalance = this.balance;
+            fileObj.numberOfTrades = this.numberOfTrades;
+            fileObj.numberOfProfitableTrades = this.numberOfProfitableTrades;
+            fileObj.currentBalance = this.balance;
 
             const writeContent = JSON.stringify(fileObj);
             JSON.parse(writeContent);
-            await fs.promises.writeFile(filePath, writeContent);
+            await fs.promises.writeFile(this.filepath, writeContent);
         } catch (ignored) {}
     }
 }

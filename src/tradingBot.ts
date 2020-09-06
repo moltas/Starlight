@@ -3,14 +3,11 @@ import chalk from "chalk";
 import tulind from "tulind";
 import fs from "fs";
 import csv from "csv-parser";
-import path from "path";
 import Ichimoku from "./ichimoku";
 
 import { PurchaseTypes, TradeItem, OpenOrderResponse, WriteObj, LogTrade, ConfigItem } from "./model/index";
 
 import binanceClient from "./clients/binanceClient";
-
-const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}.json`);
 
 class TradingBot {
     client: any;
@@ -391,7 +388,7 @@ async function getTradeDataFromFile(stock: { symbol: any }, timestamp: any) {
     let unixTime = moment(timestamp).unix();
 
     return new Promise((resolve) => {
-        fs.createReadStream(`data/BINANCE_${stock.symbol}_5_3.csv`)
+        fs.createReadStream(`data/BINANCE_${stock.symbol}_5.csv`)
             .pipe(csv())
             .on("data", (row: any) => {
                 data.push(row);

@@ -11,7 +11,7 @@ export default [
         stopLossMultiplier: 6,
         stopLimitMultiplier: 6.2,
         takeProfitMultiplier: 8,
-        atrMod: 0.5,
+        atrMod: 0.4,
     },
     {
         symbol: "ETHUSDT",
@@ -25,7 +25,7 @@ export default [
         stopLossMultiplier: 6,
         stopLimitMultiplier: 6.2,
         takeProfitMultiplier: 8,
-        atrMod: 8,
+        atrMod: 4,
     },
     {
         symbol: "LTCUSDT",

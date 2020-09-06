@@ -1,6 +1,11 @@
 import moment from "moment";
+import fs from "fs";
+import path from "path";
+
 import { getRequest, postRequest, deleteRequest } from "../utils";
-import { TradeItem } from "../model";
+import { TradeItem, WriteObj, LogTrade } from "../model";
+
+const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}.json`);
 
 class BinanceClient {
     constructor() {}
@@ -175,6 +180,21 @@ class BinanceClient {
 
     getResults() {
         return null;
+    }
+
+    async logTrade(symbol: string, trade: LogTrade) {
+        if (!symbol) return;
+
+        try {
+            const fileContent = await fs.promises.readFile(filePath, "utf-8");
+            const fileObj = JSON.parse(fileContent);
+
+            fileObj[symbol].trades.push(trade);
+
+            const writeContent = JSON.stringify(fileObj);
+            JSON.parse(writeContent);
+            await fs.promises.writeFile(filePath, writeContent);
+        } catch (ignored) {}
     }
 }
 

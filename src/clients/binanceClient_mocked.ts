@@ -1,4 +1,10 @@
-import { OcoOrder, StopLimitOrder, TradeItem, OpenOrderResponse } from "../model/index";
+import fs from "fs";
+import path from "path";
+import moment from "moment";
+
+import { OcoOrder, StopLimitOrder, TradeItem, OpenOrderResponse, LogTrade, WriteObj } from "../model/index";
+
+const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}_backtest.json`);
 
 class BinanceClientMocked {
     balance: number;
@@ -9,8 +15,8 @@ class BinanceClientMocked {
     lastPosition: any;
     numberOfProfitableTrades: number;
 
-    constructor() {
-        this.balance = 10000;
+    constructor(symbol: string) {
+        this.balance = 1000;
         this.openOrders = [];
         this.positions = {
             BTC: {
@@ -22,6 +28,9 @@ class BinanceClientMocked {
             LTC: {
                 free: 0,
             },
+            LINK: {
+                free: 0,
+            },
             USDT: {
                 free: 0,
             },
@@ -31,6 +40,16 @@ class BinanceClientMocked {
 
         this.lastPosition = null;
         this.numberOfProfitableTrades = 0;
+
+        const fileContent = {
+            [symbol]: new WriteObj(),
+        };
+
+        fileContent[symbol].startBalance = this.startingCapital;
+
+        fs.writeFile(filePath, JSON.stringify(fileContent), () => {
+            console.log("Resetting file");
+        });
     }
 
     getResults() {
@@ -66,15 +85,19 @@ class BinanceClientMocked {
         this.positions[config.symbol.split("USDT")[0]].free += quantity;
         this.balance -= item.close * quantity;
         this.lastPosition = item.close * quantity;
+
+        await this.updateTradeData(item.symbol);
     }
 
     async createSellOrder(item: TradeItem, quantity: number, config: any) {
         this.positions[config.symbol.split("USDT")[0]].free -= quantity;
-        this.balance += item.close * quantity;
+        this.balance += item.close * quantity * 0.99;
         this.numberOfTrades++;
         if (item.close * quantity > this.lastPosition) {
             this.numberOfProfitableTrades++;
         }
+
+        await this.updateTradeData(item.symbol);
     }
 
     async createStopLimitOrder(item: TradeItem, quantity: number, config: any) {
@@ -125,12 +148,46 @@ class BinanceClientMocked {
 
     async sellOrder(symbol: string, amount: string, qty: string) {
         await this.cancelOpenOrders(symbol);
-        this.balance += Number(amount);
+        this.balance += Number(amount) * 0.99;
         this.numberOfTrades++;
         this.positions[symbol.split("USDT")[0]].free -= Number(qty);
         if (amount > this.lastPosition) {
             this.numberOfProfitableTrades++;
         }
+
+        await this.updateTradeData(symbol);
+    }
+
+    async logTrade(symbol: string, trade: LogTrade) {
+        if (!symbol) return;
+
+        try {
+            const fileContent = await fs.promises.readFile(filePath, "utf-8");
+            const fileObj = JSON.parse(fileContent);
+
+            fileObj[symbol].trades.push(trade);
+
+            const writeContent = JSON.stringify(fileObj);
+            JSON.parse(writeContent);
+            await fs.promises.writeFile(filePath, writeContent);
+        } catch (ignored) {}
+    }
+
+    async updateTradeData(symbol: string) {
+        if (!symbol) return;
+
+        try {
+            const fileContent = await fs.promises.readFile(filePath, "utf-8");
+            const fileObj: WriteObj = JSON.parse(fileContent);
+
+            fileObj[symbol].numberOfTrades = this.numberOfTrades;
+            fileObj[symbol].numberOfProfitableTrades = this.numberOfProfitableTrades;
+            fileObj[symbol].currentBalance = this.balance;
+
+            const writeContent = JSON.stringify(fileObj);
+            JSON.parse(writeContent);
+            await fs.promises.writeFile(filePath, writeContent);
+        } catch (ignored) {}
     }
 }
 

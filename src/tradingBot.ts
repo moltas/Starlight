@@ -2,21 +2,15 @@ import moment from "moment";
 import chalk from "chalk";
 import tulind from "tulind";
 import fs from "fs";
-// const createCsvWriter = require("csv-writer").createObjectCsvWriter;
-// import { createObjectCsvWriter } from "csv-writer";
 import csv from "csv-parser";
 import path from "path";
 import Ichimoku from "./ichimoku";
 
-import { TradeItem, OpenOrderResponse } from "./model/index";
+import { PurchaseTypes, TradeItem, OpenOrderResponse, WriteObj, LogTrade, ConfigItem } from "./model/index";
+
+import binanceClient from "./clients/binanceClient";
 
 const filePath = path.resolve(`output/trades_${moment().format("YYYY-MM-DD")}.json`);
-
-const purchaseTypes = {
-    BREAKTHROUGH: "breakthrough",
-    CROSSING: "crossing",
-    BOUNCE: "bounce",
-};
 
 class TradingBot {
     client: any;
@@ -39,6 +33,8 @@ class TradingBot {
     }
 
     async run(config: any, backtestData?: any) {
+        const realClient = new binanceClient();
+
         if (!this.configInitialized && !backtestData) {
             await this.client.getExchangeData(config);
             this.configInitialized = true;
@@ -48,7 +44,7 @@ class TradingBot {
             if (backtestData) {
                 this.tradingData = backtestData;
             } else {
-                const data = await this.client.getLatestTickerData(config.symbol, "15m");
+                const data = await realClient.getLatestTickerData(config.symbol, "15m");
                 this.tradingData = data;
             }
 
@@ -59,7 +55,7 @@ class TradingBot {
                     const result = await getTradeDataFromFile(config, timestamp);
                     await this.handleTrade(config, result);
                 } else {
-                    const tradeData = await this.client.getLatestTickerData(config.symbol, "5m");
+                    const tradeData = await realClient.getLatestTickerData(config.symbol, "5m");
                     await this.handleTrade(config, tradeData);
                 }
             }
@@ -72,7 +68,7 @@ class TradingBot {
         return this.getResults();
     }
 
-    async handleTrade(stock: any, histData: any, doTrade = true) {
+    async handleTrade(config: ConfigItem, histData: any, doTrade = true) {
         const closePrices: number[] = [];
         const highPrices: number[] = [];
         const lowPrices: number[] = [];
@@ -85,7 +81,7 @@ class TradingBot {
             closePrices.push(bar.close);
             highPrices.push(bar.high);
             lowPrices.push(bar.low);
-            dates.push(bar.time);
+            dates.push(moment.unix(bar.time).utc().format("YYYY-MM-DD HH:mm"));
         });
 
         const ichimoku = new Ichimoku(highPrices, lowPrices, closePrices);
@@ -111,7 +107,7 @@ class TradingBot {
         histData.splice(0, lengthDiff);
 
         const tradeData = histData.map((x: any, i: number) => ({
-            symbol: stock.symbol,
+            symbol: config.symbol,
             date: dates[i],
             close: closePrices[i],
             high: highPrices[i],
@@ -120,11 +116,6 @@ class TradingBot {
             atr: atr[i],
             ichimoku: inchimokuData[i],
         }));
-
-        const last10Bars = tradeData.slice(-20);
-
-        const hasRsiBeenBelow30Last10Bars = last10Bars.some((bar: { rsi: number }) => bar.rsi <= stock.rsiLow);
-        const hasRsiBeenAbove70Last10Bars = last10Bars.some((bar: { rsi: number }) => bar.rsi >= stock.rsiHigh);
 
         const mostRecentData = tradeData.slice(-1)[0];
 
@@ -143,53 +134,54 @@ class TradingBot {
             isTrendReversalComing,
         } = this.getIchimokuSignals(tradeData, ichimokuResult);
 
-        const openOrders = await this.client.getOpenOrders(stock.symbol);
+        const openOrders = await this.client.getOpenOrders(config.symbol);
 
         if (openOrders.length > 0) {
             const limitMakerOrder: OpenOrderResponse = openOrders.filter((x: OpenOrderResponse) => x.type === "LIMIT_MAKER")[0];
             const stopLossOrder: OpenOrderResponse = openOrders.filter((x: OpenOrderResponse) => x.type === "STOP_LOSS_LIMIT")[0];
 
             if (limitMakerOrder.price <= mostRecentData.close) {
-                this.client.sellOrder(stock.symbol, limitMakerOrder.amount, limitMakerOrder.origQty);
+                await this.client.sellOrder(config.symbol, limitMakerOrder.amount, limitMakerOrder.origQty);
+                await this.client.logTrade(
+                    config.symbol,
+                    new LogTrade("sell", "LimitMaker", Number(limitMakerOrder.origQty), mostRecentData, this.buySignal)
+                );
             }
 
             if (stopLossOrder.stopPrice >= mostRecentData.close) {
-                this.client.sellOrder(stock.symbol, stopLossOrder.amount, stopLossOrder.origQty);
+                await this.client.sellOrder(config.symbol, stopLossOrder.amount, stopLossOrder.origQty);
+                await this.client.logTrade(
+                    config.symbol,
+                    new LogTrade("sell", "StopLoss", Number(stopLossOrder.origQty), mostRecentData, this.buySignal)
+                );
             }
         }
 
         let isBullishTrend = openOrders.length === 0 ? isBullishCloudComing : true;
 
         if (doTrade) {
-            if (tenkanCrossedKijunUp && chikouSpanLong && kumoCloudBeneathPrice) {
-                this.buySignal = purchaseTypes.CROSSING;
-            } else if (cloudBreakthroughUp && isTrendReversalComing) {
-                this.buySignal = purchaseTypes.BREAKTHROUGH;
-                stock.takeProfitMultiplier = 3;
-            } else if (bounceOffCloudSupport) {
-                // this.buySignal = purchaseTypes.BOUNCE;
+            if (tenkanCrossedKijunUp && chikouSpanLong && kumoCloudBeneathPrice && !this.buySignal) {
+                this.buySignal = PurchaseTypes.CROSSING;
+            } else if (cloudBreakthroughUp && isTrendReversalComing && !this.buySignal) {
+                this.buySignal = PurchaseTypes.BREAKTHROUGH;
+                config.takeProfitMultiplier = 3;
+                config.stopLossMultiplier = 2;
+                config.stopLimitMultiplier = 2.2;
             }
 
             switch (this.buySignal) {
-                case purchaseTypes.BREAKTHROUGH:
+                case PurchaseTypes.BREAKTHROUGH:
                     this.sellSignal = chikouSpanTouchesPrice;
 
                     if (openOrders.length === 0) {
-                        await this.buy(mostRecentData, stock);
+                        await this.buy(mostRecentData, config);
                     }
                     break;
-                case purchaseTypes.CROSSING:
+                case PurchaseTypes.CROSSING:
                     this.sellSignal = tenkanCrossedKijunDown;
 
                     if (openOrders.length === 0) {
-                        await this.buy(mostRecentData, stock);
-                    }
-                    break;
-                case purchaseTypes.BOUNCE:
-                    this.sellSignal = chikouSpanTouchesPrice;
-
-                    if (openOrders.length === 0) {
-                        await this.buy(mostRecentData, stock);
+                        await this.buy(mostRecentData, config);
                     }
                     break;
                 default:
@@ -197,7 +189,7 @@ class TradingBot {
             }
 
             if (this.sellSignal && openOrders.length > 0) {
-                await this.sell(mostRecentData, stock);
+                await this.sell(mostRecentData, config);
                 this.buySignal = "";
             }
         }
@@ -205,10 +197,7 @@ class TradingBot {
         return { isBullish: isBullishTrend, timestamp: mostRecentData.date };
     }
 
-    async buy(
-        item: { close: number; atr: any; symbol: any; date: any },
-        stock: { minQty: any; minNotional: number; stepSize: any; symbol: any }
-    ) {
+    async buy(item: TradeItem, stock: ConfigItem) {
         const balance = await this.client.getAccountBalance();
         let qty = stock.minQty;
 
@@ -242,12 +231,12 @@ class TradingBot {
         console.log(chalk.yellow(`${this.buySignal}`));
         console.log(item);
 
-        // await writeToFile(stock, { side: "buy", price: item.close, qty: qty, amount: qty * item.close, date: item.date });
+        await this.client.logTrade(stock.symbol, new LogTrade("buy", "market", qty, item, this.buySignal));
 
         return true;
     }
 
-    async sell(item: { symbol: any; close: number; date: any }, stock: { minNotional: number; minQty: any; stepSize: number }) {
+    async sell(item: TradeItem, stock: ConfigItem) {
         const positions = await this.client.getPositions(item.symbol);
         const positionWithTicker = positions && positions.length > 0 ? positions[0] : null;
 
@@ -273,7 +262,7 @@ class TradingBot {
                 )
             );
 
-            // await writeToFile(stock, { side: "sell", close: item.close, qty: qty, amount: qty * item.close, date: item.date });
+            await this.client.logTrade(stock.symbol, new LogTrade("sell", "market", qty, item, this.buySignal));
 
             this.hasStockBeenSold = true;
             return true;
@@ -402,7 +391,7 @@ async function getTradeDataFromFile(stock: { symbol: any }, timestamp: any) {
     let unixTime = moment(timestamp).unix();
 
     return new Promise((resolve) => {
-        fs.createReadStream(`data/BINANCE_${stock.symbol}_5.csv`)
+        fs.createReadStream(`data/BINANCE_${stock.symbol}_5_3.csv`)
             .pipe(csv())
             .on("data", (row: any) => {
                 data.push(row);
@@ -416,22 +405,6 @@ async function getTradeDataFromFile(stock: { symbol: any }, timestamp: any) {
                 resolve(filteredData);
             });
     });
-}
-
-async function writeToFile(stock: { symbol: string }, obj: any) {
-    if (!stock.symbol) return;
-
-    const fileContent = await fs.promises.readFile(filePath, "utf-8");
-    const fileObj = JSON.parse(fileContent);
-
-    if (!Object.keys(fileObj).includes(stock.symbol)) {
-        fileObj[stock.symbol] = [obj];
-    } else {
-        fileObj[stock.symbol].push(obj);
-    }
-
-    const writeContent = JSON.stringify(fileObj);
-    await fs.promises.writeFile(filePath, writeContent);
 }
 
 export default TradingBot;

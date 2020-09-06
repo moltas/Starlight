@@ -15,7 +15,7 @@ class BackTesting {
     }
 
     async run(symbol: string) {
-        const client = new BinanceClientMocked();
+        const client = new BinanceClientMocked(symbol);
         const tradingBot = new TradingBot(client);
 
         await this.initializedData(symbol);
@@ -36,7 +36,7 @@ class BackTesting {
     async initializedData(symbol: string) {
         return new Promise((resolve, reject) => {
             try {
-                fs.createReadStream(`data/BINANCE_${symbol}_15.csv`)
+                fs.createReadStream(`data/BINANCE_${symbol}_15_3.csv`)
                     .pipe(csv())
                     .on("data", (row: any) => {
                         return this.tradingData.push(row);

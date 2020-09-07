@@ -131,7 +131,7 @@ class BinanceClient {
             close: x[4],
             high: x[2],
             low: x[3],
-            time: x[6],
+            time: moment(x[6]).unix(),
         }));
 
         return formattedData;

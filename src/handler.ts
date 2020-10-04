@@ -15,7 +15,7 @@ import { ConfigItem } from "./model";
 import { asyncForEach } from "./utils";
 
 const app = express();
-const port = 8000;
+const port = 5000;
 
 app.use(bodyParser.json({ strict: false }));
 app.use(cors());

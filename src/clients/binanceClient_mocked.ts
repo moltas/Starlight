@@ -3,6 +3,7 @@ import path from "path";
 import moment from "moment";
 import chalk from "chalk";
 
+import { getRequest } from "../utils";
 import { OcoOrder, StopLimitOrder, TradeItem, OpenOrderResponse, LogTrade, WriteObj } from "../model/index";
 
 class BinanceClientMocked {
@@ -128,8 +129,20 @@ class BinanceClientMocked {
         this.openOrders.push(limitMakerOrder);
     }
 
-    getLatestTickerData(symbol: string): any[] {
-        return [];
+    async getLatestTickerData(symbol: string, interval: any, startTime: number, endTime?: number, limit: number = 200) {
+        const data = await getRequest(
+            "klines",
+            `symbol=${symbol}&interval=${interval}&startTime=${startTime}&${endTime ? `endTime=${endTime}` : ""}&limit=${limit}`
+        );
+
+        const formattedData = data.map((x) => ({
+            close: x[4],
+            high: x[2],
+            low: x[3],
+            time: moment(x[6]).unix(),
+        }));
+
+        return formattedData;
     }
 
     async getExchangeData(config: any) {

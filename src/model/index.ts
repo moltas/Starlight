@@ -92,3 +92,9 @@ export class LogTrade {
         this.tradeSignal = tradeSignal;
     }
 }
+
+export interface HandleTrade {
+    entrySignal: boolean;
+    exitSignal: boolean;
+    timestamp: number;
+}

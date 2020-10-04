@@ -1,13 +1,13 @@
 import moment from "moment";
+import { format, getTime } from "date-fns";
 import chalk from "chalk";
 import tulind from "tulind";
 import fs from "fs";
 import csv from "csv-parser";
+// import { createObjectCsvWriter } from "csv-writer";
 import Ichimoku from "./ichimoku";
 
-import { PurchaseTypes, TradeItem, OpenOrderResponse, WriteObj, LogTrade, ConfigItem } from "./model/index";
-
-import binanceClient from "./clients/binanceClient";
+import { PurchaseTypes, TradeItem, OpenOrderResponse, WriteObj, LogTrade, ConfigItem, HandleTrade } from "./model/index";
 
 class TradingBot {
     client: any;
@@ -30,8 +30,6 @@ class TradingBot {
     }
 
     async run(config: any, backtestData?: any) {
-        const realClient = new binanceClient();
-
         if (!this.configInitialized && !backtestData) {
             await this.client.getExchangeData(config);
             this.configInitialized = true;
@@ -41,19 +39,21 @@ class TradingBot {
             if (backtestData) {
                 this.tradingData = backtestData;
             } else {
-                const data = await realClient.getLatestTickerData(config.symbol, "15m");
+                const data = await this.client.getLatestTickerData(config.symbol, "30m");
                 this.tradingData = data;
             }
 
-            const { isBullish, timestamp } = await this.handleTrade(config, this.tradingData, false);
+            const { entrySignal, exitSignal, timestamp } = await this.handleTrade(config, this.tradingData);
 
-            if (isBullish) {
+            if (entrySignal || exitSignal) {
                 if (backtestData) {
-                    const result = await getTradeDataFromFile(config, timestamp);
-                    await this.handleTrade(config, result);
+                    const result = await this.client.getLatestTickerData(config.symbol, "15m", timestamp, null, 200);
+                    if (entrySignal) await this.handleTrade(config, result, true);
+                    if (exitSignal) await this.handleTrade(config, result, null, true);
                 } else {
-                    const tradeData = await realClient.getLatestTickerData(config.symbol, "5m");
-                    await this.handleTrade(config, tradeData);
+                    const tradeData = await this.client.getLatestTickerData(config.symbol, "15m");
+                    if (entrySignal) await this.handleTrade(config, tradeData, true);
+                    if (exitSignal) await this.handleTrade(config, tradeData, null, true);
                 }
             }
         } catch (error) {
@@ -65,7 +65,7 @@ class TradingBot {
         return this.getResults();
     }
 
-    async handleTrade(config: ConfigItem, histData: any, doTrade = true) {
+    async handleTrade(config: ConfigItem, histData: any, enterTrade?: boolean, exitTrade?: boolean): Promise<HandleTrade> {
         const closePrices: number[] = [];
         const highPrices: number[] = [];
         const lowPrices: number[] = [];
@@ -154,44 +154,48 @@ class TradingBot {
             }
         }
 
-        let isBullishTrend = openOrders.length === 0 ? isBullishCloudComing : true;
+        let buySignal = false;
 
-        if (doTrade) {
-            if (tenkanCrossedKijunUp && chikouSpanLong && kumoCloudBeneathPrice && !this.buySignal) {
-                this.buySignal = PurchaseTypes.CROSSING;
-            } else if (cloudBreakthroughUp && isTrendReversalComing && !this.buySignal) {
-                this.buySignal = PurchaseTypes.BREAKTHROUGH;
-                config.takeProfitMultiplier = 3;
-                config.stopLossMultiplier = 2;
-                config.stopLimitMultiplier = 2.2;
-            }
-
-            switch (this.buySignal) {
-                case PurchaseTypes.BREAKTHROUGH:
-                    this.sellSignal = chikouSpanTouchesPrice;
-
-                    if (openOrders.length === 0) {
-                        await this.buy(mostRecentData, config);
-                    }
-                    break;
-                case PurchaseTypes.CROSSING:
-                    this.sellSignal = tenkanCrossedKijunDown;
-
-                    if (openOrders.length === 0) {
-                        await this.buy(mostRecentData, config);
-                    }
-                    break;
-                default:
-                    this.sellSignal = false;
-            }
-
-            if (this.sellSignal && openOrders.length > 0) {
-                await this.sell(mostRecentData, config);
-                this.buySignal = "";
-            }
+        if (tenkanCrossedKijunUp && chikouSpanLong && kumoCloudBeneathPrice && !this.buySignal) {
+            this.buySignal = PurchaseTypes.CROSSING;
+            buySignal = true;
+        } else if (cloudBreakthroughUp && isTrendReversalComing && !this.buySignal) {
+            this.buySignal = PurchaseTypes.BREAKTHROUGH;
+            config.takeProfitMultiplier = 3;
+            config.stopLossMultiplier = 2;
+            config.stopLimitMultiplier = 2.2;
+            buySignal = true;
         }
 
-        return { isBullish: isBullishTrend, timestamp: mostRecentData.date };
+        switch (this.buySignal) {
+            case PurchaseTypes.BREAKTHROUGH:
+                this.sellSignal = chikouSpanTouchesPrice;
+
+                if (openOrders.length === 0 && !exitTrade) {
+                    await this.buy(mostRecentData, config);
+                }
+                break;
+            case PurchaseTypes.CROSSING:
+                this.sellSignal = tenkanCrossedKijunDown;
+
+                if (openOrders.length === 0 && !exitTrade) {
+                    await this.buy(mostRecentData, config);
+                }
+                break;
+            default:
+                this.sellSignal = false;
+        }
+
+        if (exitTrade && this.sellSignal && openOrders.length > 0) {
+            await this.sell(mostRecentData, config);
+            this.buySignal = "";
+        }
+
+        return {
+            entrySignal: buySignal,
+            exitSignal: this.sellSignal,
+            timestamp: getTime(new Date(mostRecentData.date)),
+        };
     }
 
     async buy(item: TradeItem, stock: ConfigItem) {

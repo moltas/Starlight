@@ -15,7 +15,7 @@
         "chalk": "^4.1.0",
         "csv-parser": "^2.3.3",
         "express": "^4.17.1",
-        "moment": "^2.27.0",
+        "moment": "^2.29.4",
         "serverless-dynamodb-local": "^0.2.38",
         "serverless-http": "^2.3.0",
         "serverless-offline": "^5.12.0",

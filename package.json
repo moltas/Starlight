@@ -18,7 +18,7 @@
         "moment": "^2.27.0",
         "serverless-dynamodb-local": "^0.2.38",
         "serverless-http": "^2.3.0",
-        "serverless-offline": "^5.12.0",
+        "serverless-offline": "^12.0.4",
         "technicalindicators": "^3.1.0",
         "trading-signals": "^1.0.1",
         "tulind": "^0.8.18",
